@@ -29,7 +29,7 @@ depend on a release tag:
 
 ```scala
 resolvers += "jitpack" at "https://jitpack.io"
-libraryDependencies += "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.0"
+libraryDependencies += "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.1"
 ```
 
 You can also track a branch (`"main-SNAPSHOT"`) or a specific commit hash instead of a tag.
@@ -96,7 +96,7 @@ sbt test
 sbt scalafmtCheckAll   # formatting
 ```
 
-Requires sbt 2 (see `project/build.properties`). A Nix flake provides a dev shell with a matching
+Uses sbt (see `project/build.properties`). A Nix flake provides a dev shell with a matching
 JDK, sbt, and scalafmt:
 
 ```bash

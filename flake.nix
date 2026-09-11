@@ -13,9 +13,8 @@
       let
         pkgs = import nixpkgs { inherit system; };
         jdk = pkgs.jdk21;
-        # The nixpkgs sbt launcher (1.x) reads project/build.properties and bootstraps the sbt
-        # version it names — including sbt 2.x — so no launcher pin is needed. NB: the bundled
-        # `sbtn` thin client is sbt 1.x and cannot drive an sbt 2 server; use `sbt`, not `sbtn`.
+        # The nixpkgs sbt launcher reads project/build.properties and bootstraps the sbt version it
+        # names (1.10.7 here), so no launcher pin is needed.
         sbt = pkgs.sbt.override { jre = jdk; };
       in
       {
