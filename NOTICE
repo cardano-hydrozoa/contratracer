@@ -1,0 +1,25 @@
+contra-tracer (Scala)
+Copyright 2025 the contra-tracer-scala contributors
+
+This product is licensed under the Apache License, Version 2.0 (see the LICENSE file).
+
+--------------------------------------------------------------------------------
+
+This is a derivative work: a Scala 3 / Cats port of the Haskell `contra-tracer`
+library by Alexander Vieth.
+
+  Original project: https://github.com/avieth/contra-tracer
+  Original license: Apache License, Version 2.0
+  Original copyright:
+    Copyright 2019-2021 Input Output (Hong Kong) Ltd.
+    Copyright 2019-2021 Well-Typed LLP
+    Copyright 2019-2021 Alexander Vieth
+
+The Scala sources in this repository (`ContraTracer.scala`, `TracerA.scala`) are
+translations and adaptations of the upstream Haskell modules, chiefly
+`src/Control/Tracer.hs` and `src/Control/Tracer/Arrow.hs`. They have been modified
+from the originals: rewritten in Scala 3 over the Cats typeclass hierarchy
+(`Monad`, `Arrow`, `ArrowChoice`, `Semigroup`, `Monoid`, `Contravariant`), with an
+added compilation/memoisation step so a squelched trace is allocation-free on the
+JVM. Attribution comments in the source files point back to the specific upstream
+files they derive from.

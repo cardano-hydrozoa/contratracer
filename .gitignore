@@ -1,0 +1,18 @@
+# Scala / sbt
+target/
+project/target/
+project/project/
+.bsp/
+**/*.semanticdb
+
+# IDE / tooling
+.idea/
+.metals/
+.bloop/
+.vscode/
+.direnv/
+.envrc.local
+**/metals.sbt
+
+# AI
+.claude/
