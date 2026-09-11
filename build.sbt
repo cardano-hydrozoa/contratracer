@@ -1,10 +1,16 @@
 ThisBuild / scalaVersion := "3.3.7"
-ThisBuild / organization := "org.cardano-hydrozoa"
-ThisBuild / version := "0.1.0-SNAPSHOT"
+// Published via JitPack, which serves artifacts under `com.github.<org>` and resolves the
+// requested version against a git tag (trying both `X` and `vX`). So the groupId must be
+// `com.github.cardano-hydrozoa` and `version` must match the release tag — to cut `v0.1.0`, set
+// `version := "0.1.0"` here, commit, then tag `v0.1.0`. Consumers then depend on:
+//   "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.0"   (+ the JitPack resolver)
+ThisBuild / organization := "com.github.cardano-hydrozoa"
+ThisBuild / version := "0.1.0"
 
 lazy val root = (project in file("."))
     .settings(
-      name := "contra-tracer",
+      // Matches the GitHub repo name so the JitPack coordinate reads `…:contratracer:…`.
+      name := "contratracer",
       description :=
           "A typed, composable contravariant tracer for Scala 3 / Cats, ported from " +
               "Alexander Vieth's Haskell contra-tracer.",

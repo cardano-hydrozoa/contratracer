@@ -1,0 +1,7 @@
+# JitPack build config. Without this file JitPack builds with an old default JDK; sbt 2 (see
+# project/build.properties) needs a modern one. `sbt publishM2` is JitPack's default sbt command,
+# stated explicitly here so the build step is self-documenting.
+jdk:
+  - openjdk21
+install:
+  - sbt publishM2

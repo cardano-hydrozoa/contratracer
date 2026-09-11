@@ -24,11 +24,15 @@ can't:
 
 ## Install
 
+Published via [JitPack](https://jitpack.io/#cardano-hydrozoa/contratracer) — add the resolver and
+depend on a release tag:
+
 ```scala
-libraryDependencies += "org.cardano-hydrozoa" %% "contra-tracer" % "0.1.0-SNAPSHOT"
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies += "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.0"
 ```
 
-(Not yet published to a public repository — `sbt publishLocal` for now.)
+You can also track a branch (`"main-SNAPSHOT"`) or a specific commit hash instead of a tag.
 
 ## Usage
 
@@ -92,7 +96,12 @@ sbt test
 sbt scalafmtCheckAll   # formatting
 ```
 
-Requires sbt 2 (see `project/build.properties`).
+Requires sbt 2 (see `project/build.properties`). A Nix flake provides a dev shell with a matching
+JDK, sbt, and scalafmt:
+
+```bash
+nix develop      # then run the sbt commands above
+```
 
 ## License & attribution
 
