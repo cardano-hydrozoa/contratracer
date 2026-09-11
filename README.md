@@ -29,10 +29,13 @@ depend on a release tag:
 
 ```scala
 resolvers += "jitpack" at "https://jitpack.io"
-libraryDependencies += "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.1"
+libraryDependencies += "com.github.cardano-hydrozoa" % "contratracer" % "0.1.1"
 ```
 
-You can also track a branch (`"main-SNAPSHOT"`) or a specific commit hash instead of a tag.
+Note the **single `%`**: JitPack re-serves the built `contratracer_3` artifact under the repo name
+with the Scala suffix stripped (`contratracer`), so `%%` would not resolve. The published jar is a
+Scala 3 artifact regardless. You can also track a branch (`"main-SNAPSHOT"`) or a specific commit
+hash in place of the tag.
 
 ## Usage
 

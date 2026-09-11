@@ -2,8 +2,9 @@ ThisBuild / scalaVersion := "3.3.7"
 // Published via JitPack, which serves artifacts under `com.github.<org>` and resolves the
 // requested version against a git tag (trying both `X` and `vX`). So the groupId must be
 // `com.github.cardano-hydrozoa` and `version` must match the release tag — to cut `v0.1.1`, set
-// `version := "0.1.1"` here, commit, then tag `v0.1.1`. Consumers then depend on:
-//   "com.github.cardano-hydrozoa" %% "contratracer" % "0.1.1"   (+ the JitPack resolver)
+// `version := "0.1.1"` here, commit, then tag `v0.1.1`. JitPack re-serves the built
+// `contratracer_3` jar under the repo name (suffix stripped), so consumers use a single `%`:
+//   "com.github.cardano-hydrozoa" % "contratracer" % "0.1.1"   (+ the JitPack resolver)
 ThisBuild / organization := "com.github.cardano-hydrozoa"
 ThisBuild / version := "0.1.1"
 
