@@ -118,7 +118,11 @@ object Soundness:
 /** cats' Contravariant and Monoid laws for [[KeyedTracer]], and its soundness: a sink receives an
   * event only under a key its own `enabled` accepted.
   */
-class KeyedTracerLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
+class KeyedTracerLawsSuite
+    extends AnyFunSuite
+    with FunSuiteDiscipline
+    with Checkers
+    with LawEvaluations:
     import Soundness.*
 
     checkAll("KeyedTracer, traceAt", KeyedRules.contravariant)
