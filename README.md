@@ -23,8 +23,8 @@ with the Scala suffix stripped (`contratracer`), so `%%` would not resolve. The 
 Scala 3 artifact regardless. You can also track a branch (`"main-SNAPSHOT"`) or a specific commit
 hash in place of the tag.
 
-The core library's only runtime dependency is `cats-core`. The optional modules under
-[Modules](#modules) add their own.
+The core library depends on `cats-core` and on `cats-effect-kernel`, which holds cats-effect's type
+classes but no runtime. The optional module under [Modules](#modules) adds its own.
 
 ## Usage
 
@@ -104,7 +104,7 @@ val all: ContraTracer[IO, FetcherEvent] = List(fetcherTracer, metricsTracer, aud
 
 ### Test with a recording tracer
 
-`Recording.make`, in the `contratracer-effect` module, returns a tracer that keeps every event in a
+`Recording.make`, in package `contratracer.effect`, returns a tracer that keeps every event in a
 `Ref`, and the effect that reads them back. Combine it with the real sink to keep the log while
 recording:
 
@@ -212,7 +212,8 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   tested.
 - **Trace before acting when the act can cancel you.** If an action's consequence can cancel the
   tracing fiber, a trace after it may never run. Trace first, or trace the outcome in a finaliser.
-  `contratracer-effect` has both as combinators: `traceThenAct` and `actThenTraceOutcome`.
+  [`contratracer.effect`](#contratracereffect) has both as combinators: `traceThenAct` and
+  `actThenTraceOutcome`.
 - **A blocking sink holds compute threads.** A sink that writes synchronously inside `IO.delay`
   blocks a compute worker and delays unrelated fibers. Log through an asynchronous appender, or wrap
   the write in `IO.blocking`, which can cost a thread handoff per trace.
@@ -221,9 +222,24 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   tracing recurses once per level and can overflow a default thread stack from about a thousand
   levels.
 
+## `contratracer.effect`
+
+Combinators that need cats-effect's type classes. They are part of the core library.
+
+- **`Recording.make[F, A]`** returns a tracer that keeps every event in a `Ref`, and the effect that
+  reads them, oldest first. Each fiber's events keep the order their traces ran.
+- **`Recording.awaiting(p)`** adds an effect that waits for the first event satisfying `p` and
+  returns it. The event is recorded before the waiter wakes, so a test can wait for a trace instead
+  of sleeping.
+- **`TraceAroundAct.traceThenAct(tracer)(event)(act)`** traces, then acts, as one uncancelable step:
+  the event is traced if and only if the act runs. The whole act is masked, so keep it short.
+- **`TraceAroundAct.actThenTraceOutcome(tracer)(act)(outcome => event)`** acts, then traces how the
+  act ended in a finaliser that a cancel cannot skip. The trace can trail what observers of the act
+  already saw.
+
 ## Modules
 
-Each module depends on the core library and is published beside it from the same build. JitPack
+The module depends on the core library and is published beside it from the same build. JitPack
 documents multi-module coordinates as the group `com.github.cardano-hydrozoa.contratracer` with the
 module's name as the artifact.
 
@@ -256,21 +272,6 @@ val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
     }
 ```
 
-### `contratracer-effect`
-
-Combinators that need cats-effect. It adds `cats-effect-kernel`.
-
-- **`Recording.make[F, A]`** returns a tracer that keeps every event in a `Ref`, and the effect that
-  reads them, oldest first. Each fiber's events keep the order their traces ran.
-- **`Recording.awaiting(p)`** adds an effect that waits for the first event satisfying `p` and
-  returns it. The event is recorded before the waiter wakes, so a test can wait for a trace instead
-  of sleeping.
-- **`TraceAroundAct.traceThenAct(tracer)(event)(act)`** traces, then acts, as one uncancelable step:
-  the event is traced if and only if the act runs. The whole act is masked, so keep it short.
-- **`TraceAroundAct.actThenTraceOutcome(tracer)(act)(outcome => event)`** acts, then traces how the
-  act ended in a finaliser that a cancel cannot skip. The trace can trail what observers of the act
-  already saw.
-
 ## Layout
 
 Each published module has its own directory; the build's root aggregates them and publishes
@@ -278,7 +279,6 @@ nothing.
 
 - `contratracer/`: the core library, in package `contratracer`.
 - `contratracer-slf4j/`: the SLF4J module.
-- `contratracer-effect/`: the cats-effect module.
 
 The core's sources:
 
@@ -290,6 +290,7 @@ The core's sources:
 - `KeyedTracer.scala`: `KeyedTracer`, which asks with a key before building an event, and
   `TraceKey`, the key an event's type carries.
 - `Level.scala`: `Level`, its shorthands, and `Severity`, a `TraceKey` over `Level`.
+- `effect/Recording.scala`, `effect/TraceAroundAct.scala`: the combinators that need cats-effect.
 
 ## Building
 

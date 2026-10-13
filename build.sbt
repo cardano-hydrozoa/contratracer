@@ -11,10 +11,11 @@ ThisBuild / version := "0.2.0"
 // The build's root aggregates the published modules, so a command run here, JitPack's `publishM2`
 // included, runs in each of them. It publishes nothing itself.
 lazy val root: Project = (project in file("."))
-    .aggregate(core, slf4j, effect)
+    .aggregate(core, slf4j)
     .settings(publish / skip := true)
 
-// The core library, published as `contratracer`.
+// The core library, published as `contratracer`. Its package `contratracer.effect` holds the
+// combinators that need cats-effect's type classes, so it depends on the cats-effect kernel too.
 lazy val core: Project = (project in file("contratracer"))
     .settings(
       // Matches the GitHub repo name so the JitPack coordinate reads `…:contratracer:…`.
@@ -25,8 +26,11 @@ lazy val core: Project = (project in file("contratracer"))
       licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-core" % "2.13.0",
-        // Test-only: the demo suite drives tracers in IO to show the laziness/composition laws.
+        "org.typelevel" %% "cats-effect-kernel" % "3.6.3",
+        // Test-only: the demo suite drives tracers in IO to show the laziness/composition laws,
+        // and the effect specs run on cats-effect and its TestControl.
         "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
+        "org.typelevel" %% "cats-effect-testkit" % "3.6.3" % Test,
         "org.scalatest" %% "scalatest" % "3.2.19" % Test,
         // Test-only: the law suites (cats' Arrow/Contravariant/Monoid suites via discipline).
         "org.typelevel" %% "cats-laws" % "2.13.0" % Test,
@@ -45,8 +49,8 @@ lazy val core: Project = (project in file("contratracer"))
       )
     )
 
-// SLF4J sinks keyed by level. Core keeps cats-core as its only dependency; this module adds
-// slf4j-api and the cats-effect kernel (for `Sync`), and no logging backend.
+// SLF4J sinks keyed by level. This module adds slf4j-api, and no logging backend; it names the
+// cats-effect kernel (for `Sync`) itself, though core brings it too.
 lazy val slf4j: Project = (project in file("contratracer-slf4j"))
     .dependsOn(core)
     .settings(
@@ -58,23 +62,6 @@ lazy val slf4j: Project = (project in file("contratracer-slf4j"))
         "org.typelevel" %% "cats-effect-kernel" % "3.6.3",
         "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
         "ch.qos.logback" % "logback-classic" % "1.5.18" % Test,
-        "org.scalatest" %% "scalatest" % "3.2.19" % Test
-      ),
-      scalacOptions ++= (core / scalacOptions).value
-    )
-
-// cats-effect combinators: a recording tracer for tests, and tracing around an act that a cancel
-// can interrupt. It adds the cats-effect kernel only; its tests run on cats-effect itself.
-lazy val effect: Project = (project in file("contratracer-effect"))
-    .dependsOn(core)
-    .settings(
-      name := "contratracer-effect",
-      description := "cats-effect combinators for contratracer: recording and trace-before-act.",
-      licenses := (core / licenses).value,
-      libraryDependencies ++= Seq(
-        "org.typelevel" %% "cats-effect-kernel" % "3.6.3",
-        "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
-        "org.typelevel" %% "cats-effect-testkit" % "3.6.3" % Test,
         "org.scalatest" %% "scalatest" % "3.2.19" % Test
       ),
       scalacOptions ++= (core / scalacOptions).value
