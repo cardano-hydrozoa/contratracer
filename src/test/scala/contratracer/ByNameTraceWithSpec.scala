@@ -2,7 +2,6 @@ package contratracer
 
 import cats.Id
 import cats.arrow.FunctionK
-import cats.syntax.all.*
 import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer
@@ -21,18 +20,13 @@ class ByNameTraceWithSpec extends AnyFunSuite {
       "contramapM" -> nullTracer[Id, Int].contramapM[Int](i => i + 1),
       "squelchUnless" -> nullTracer[Id, Int].squelchUnless(_ => true),
       "traceMaybe" -> nullTracer[Id, Int].traceMaybe[Int](Some(_)),
-      "natTracer" -> nullTracer[Id, Int].natTracer(FunctionK.id[Id])
+      "mapK" -> nullTracer[Id, Int].mapK(FunctionK.id[Id])
     )
 
     squelched.foreach { (name, tracer) =>
         test(s"squelched through $name: the argument is never evaluated") {
             tracer.traceWith(boom)
         }
-    }
-
-    test("squelched through ContraTracerSyntax: the argument is never evaluated") {
-        given ContraTracer[Id, Int] = nullTracer[Id, Int]
-        ContraTracerSyntax.traceWith[Id, Int](boom)
     }
 
     private def emitting(
@@ -47,7 +41,7 @@ class ByNameTraceWithSpec extends AnyFunSuite {
           ("squelchUnless (passes)", leaf.squelchUnless(_ > 0), List(7)),
           ("squelchUnless (filtered)", leaf.squelchUnless(_ < 0), Nil),
           ("traceMaybe", leaf.traceMaybe[Int](Some(_)), List(7)),
-          ("natTracer", leaf.natTracer(FunctionK.id[Id]), List(7))
+          ("mapK", leaf.mapK(FunctionK.id[Id]), List(7))
         )
     }
 
@@ -59,13 +53,5 @@ class ByNameTraceWithSpec extends AnyFunSuite {
             tracer.traceWith { evaluations += 1; 7 }
             assert((evaluations, sink.toList) == (1, expected))
         }
-    }
-
-    test("emitting through ContraTracerSyntax: the argument is evaluated exactly once") {
-        val sink = ListBuffer.empty[Int]
-        given ContraTracer[Id, Int] = ContraTracer.emit[Id, Int](i => sink += i: Unit)
-        var evaluations = 0
-        ContraTracerSyntax.traceWith[Id, Int] { evaluations += 1; 7 }
-        assert((evaluations, sink.toList) == (1, List(7)))
     }
 }

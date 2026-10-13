@@ -90,12 +90,12 @@ object Semantics:
                 }
         }
 
-    /** S7: `natTracer` by a monad morphism maps `traceWith` through it, keeps the tag, and commutes
-      * with `|+|`, `contramap` and `contramapM`; by the identity it changes nothing.
+    /** S7: `mapK` by a monad morphism maps `traceWith` through it, keeps the tag, and commutes with
+      * `|+|`, `contramap` and `contramapM`; by the identity it changes nothing.
       */
     private val eqS: Eq[ContraTracer[S, MiniInt]] = Obs.eqTracerS[MiniInt]
 
-    private def nat(t: CT[MiniInt]): ContraTracer[S, MiniInt] = t.natTracer(toState)
+    private def nat(t: CT[MiniInt]): ContraTracer[S, MiniInt] = t.mapK(toState)
 
     val natMapsTraceWith: Prop = forAll { (t: CT[MiniInt]) =>
         tagOf(nat(t)) == tagOf(t) && inputs.forall(a =>
@@ -115,7 +115,7 @@ object Semantics:
         }
 
     val natIdentity: Prop = forAll { (t: CT[MiniInt]) =>
-        eqCT.eqv(t.natTracer(FunctionK.id[W]), t)
+        eqCT.eqv(t.mapK(FunctionK.id[W]), t)
     }
 
     /** S8: `traceTraversable` traces each element in order; `traceAll(f)` is
@@ -169,9 +169,9 @@ class ContraTracerSemanticsSuite extends AnyFunSuite:
       "S6 traceMaybe(f) traces f(a) when defined" -> Semantics.traceMaybeTraces,
       "S6m traceMaybeM's classifier runs iff the tracer is tagged Emitting" ->
           Semantics.traceMaybeMTraces,
-      "S7 natTracer maps traceWith through the morphism" -> Semantics.natMapsTraceWith,
-      "S7 natTracer commutes with |+|, contramap, contramapM" -> Semantics.natCommutes,
-      "S7 natTracer by the identity changes nothing" -> Semantics.natIdentity,
+      "S7 mapK maps traceWith through the morphism" -> Semantics.natMapsTraceWith,
+      "S7 mapK commutes with |+|, contramap, contramapM" -> Semantics.natCommutes,
+      "S7 mapK by the identity changes nothing" -> Semantics.natIdentity,
       "S8 traceTraversable traces each element in order" -> Semantics.traceTraversableTraverses,
       "S8 traceAll(f) is traceTraversable contramapped by f" -> Semantics.traceAllIsContramap,
       "candidate contramapLocal equals contramap" -> Semantics.contramapLocalAgrees,

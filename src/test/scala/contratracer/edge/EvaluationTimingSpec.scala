@@ -72,7 +72,7 @@ class EvaluationTimingSpec extends AnyFunSuite {
               (nullTracer[M, Int].contramap[Int] { i =>
                   log("sq"); i
               } |+| leaf("sink")),
-          "natTracer(id)" -> leaf("sink").natTracer(FunctionK.id[M])
+          "mapK(id)" -> leaf("sink").mapK(FunctionK.id[M])
         )
     }
 
@@ -115,7 +115,7 @@ class EvaluationTimingSpec extends AnyFunSuite {
         List("event"),
         List("sink-fn(7)", "sink-effect(7)")
       ),
-      "natTracer(id)" -> Expected(List("event", "sink-fn(7)"), List("sink-effect(7)"))
+      "mapK(id)" -> Expected(List("event", "sink-fn(7)"), List("sink-effect(7)"))
     )
 
     /** Trace once, then run the result twice, logging the boundaries between the phases. */

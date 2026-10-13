@@ -50,9 +50,11 @@ object DeepShapes {
             case Shape.CombineAll =>
                 Monoid[ContraTracer[M, Int]].combineAll(Iterator.fill(depth)(leaf))
             case Shape.ArrowLeft =>
-                ContraTracer((1 to depth).foldLeft(idA)((t, _) => t >>> step) >>> leaf.use)
+                ContraTracer.fromArrow(
+                  (1 to depth).foldLeft(idA)((t, _) => t >>> step) >>> leaf.runTracer
+                )
             case Shape.ArrowRight =>
-                ContraTracer((1 to depth).foldLeft(leaf.use)((t, _) => step >>> t))
+                ContraTracer.fromArrow((1 to depth).foldLeft(leaf.runTracer)((t, _) => step >>> t))
         }
     }
 

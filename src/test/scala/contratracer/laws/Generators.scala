@@ -92,14 +92,14 @@ object Generators:
         val leaves = Gen.oneOf(
           genTag.map(t => ContraTracer.emit[W, A](a => emitted(t, a))),
           Gen.const(ContraTracer.nullTracer[W, A]),
-          tracerA[A, Unit](0).map(ContraTracer(_))
+          tracerA[A, Unit](0).map(ContraTracer.fromArrow(_))
         )
         if depth <= 0 then leaves
         else
             val d = depth - 1
             Gen.frequency(
               3 -> leaves,
-              1 -> tracerA[A, Unit](d).map(ContraTracer(_)),
+              1 -> tracerA[A, Unit](d).map(ContraTracer.fromArrow(_)),
               2 -> (for
                   x <- tracer[A](d)
                   y <- tracer[A](d)

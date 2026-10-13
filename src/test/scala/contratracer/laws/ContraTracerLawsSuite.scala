@@ -30,8 +30,10 @@ object Candidates:
                 fa: ContraTracer[M, A],
                 fb: ContraTracer[M, B]
             ): ContraTracer[M, (A, B)] =
-                ContraTracer(
-                  (fa.use *** fb.use) >>> TracerA.compute[M, (Unit, Unit), Unit](_ => ())
+                ContraTracer.fromArrow(
+                  (fa.runTracer *** fb.runTracer) >>> TracerA.compute[M, (Unit, Unit), Unit](_ =>
+                      ()
+                  )
                 )
 
             def contramap[A, B](fa: ContraTracer[M, A])(f: B => A): ContraTracer[M, B] =
@@ -42,8 +44,8 @@ object Candidates:
       */
     def contramapLocal[M[_]: Monad, A, B](t: ContraTracer[M, A])(f: B => A): ContraTracer[M, B] =
         t.runTracer match
-            case TracerA.Emitting(e, p) => ContraTracer(TracerA.Emitting(e.local(f), p))
-            case TracerA.Squelching(k)  => ContraTracer(TracerA.Squelching(k.local(f)))
+            case TracerA.Emitting(e, p) => ContraTracer.fromArrow(TracerA.Emitting(e.local(f), p))
+            case TracerA.Squelching(k)  => ContraTracer.fromArrow(TracerA.Squelching(k.local(f)))
 
     /** The Haskell `Decidable` operations in tracer form: `choose` dispatches an `Either` to one of
       * two tracers; `lose` (on `Nothing`) is `nullTracer`.
@@ -51,7 +53,7 @@ object Candidates:
     def decide[M[_]: Monad, A, B](
         fa: ContraTracer[M, A],
         fb: ContraTracer[M, B]
-    ): ContraTracer[M, Either[A, B]] = ContraTracer(fa.use ||| fb.use)
+    ): ContraTracer[M, Either[A, B]] = ContraTracer.fromArrow(fa.runTracer ||| fb.runTracer)
 
 /** The cats rule sets for [[ContraTracer]] under `traceWith` on every input, every recorded event
   * compared, constructor tag included.

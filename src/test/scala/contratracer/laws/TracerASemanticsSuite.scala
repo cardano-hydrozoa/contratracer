@@ -117,8 +117,8 @@ object ArrowSemantics:
       */
     val contramapLocalAgreesOnArrow: Prop =
         forAll(arbitrary[CT[MiniInt]], arbitrary[Boolean => MiniInt]) { (t, f) =>
-            val local = Candidates.contramapLocal(t)(f).use
-            val today = t.contramap(f).use
+            val local = Candidates.contramapLocal(t)(f).runTracer
+            val today = t.contramap(f).runTracer
             Obs.eqTracerA[Boolean, Unit](Obs.Full, true).eqv(local, today) &&
             Obs.eqTracerA[Boolean, Unit](Obs.Emits, true).eqv(local, today)
         }

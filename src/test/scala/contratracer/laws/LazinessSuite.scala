@@ -27,25 +27,29 @@ object Laziness:
     import TracerA.given
 
     /** laziness_1: a pure stage on the input, then nothing emits. */
-    val laziness1: CT[Int] = ContraTracer(
+    val laziness1: CT[Int] = ContraTracer.fromArrow(
       TracerA.compute[W, Int, Boolean](_ => Boom()) >>> TracerA.compute[W, Boolean, Boolean](!_)
           >>> TracerA.squelch[W, Boolean]
     )
 
     /** laziness_2: choice between two null tracers. */
-    val laziness2: CT[Int] = ContraTracer(
+    val laziness2: CT[Int] = ContraTracer.fromArrow(
       TracerA.compute[W, Int, Either[Unit, Unit]](_ => Boom()) >>>
-          (ContraTracer.nullTracer[W, Unit].use ||| ContraTracer.nullTracer[W, Unit].use)
+          (ContraTracer.nullTracer[W, Unit].runTracer ||| ContraTracer
+              .nullTracer[W, Unit]
+              .runTracer)
     )
 
     /** laziness_3: the first branch emits, the second cannot; on `false` nothing after the branch
       * runs.
       */
-    val laziness3: CT[Boolean] = ContraTracer(
+    val laziness3: CT[Boolean] = ContraTracer.fromArrow(
       TracerA.compute[W, Boolean, Either[Unit, Unit]](b => if b then Left(()) else Right(())) >>>
           (TracerA.emit[W, Unit](_ => emitted(1, ())) |||
               (TracerA.effect[W, Unit, Either[Unit, Unit]](_ => Boom()) >>>
-                  (ContraTracer.nullTracer[W, Unit].use ||| ContraTracer.nullTracer[W, Unit].use)))
+                  (ContraTracer.nullTracer[W, Unit].runTracer ||| ContraTracer
+                      .nullTracer[W, Unit]
+                      .runTracer)))
     )
 
     /** traceTraversable_laziness: a null element tracer never folds the structure. */
@@ -66,7 +70,7 @@ object Laziness:
             inner.traceMaybe[Int](_ => Boom()) |+|
             inner.traceMaybeM[Int](_ => Boom()) |+|
             inner.traceAll[List, Int](_ => Boom())
-        combined.natTracer(toState).natTracer(Recorded.fromState)
+        combined.mapK(toState).mapK(Recorded.fromState)
 
 class LazinessSuite extends AnyFunSuite:
     test("laziness_1: a pure stage before a squelch is never invoked") {

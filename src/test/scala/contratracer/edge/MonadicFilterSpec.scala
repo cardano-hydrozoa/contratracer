@@ -2,7 +2,6 @@ package contratracer.edge
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.syntax.all.*
 import contratracer.ContraTracer
 import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite

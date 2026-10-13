@@ -2,7 +2,6 @@ package contratracer
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.syntax.all.*
 import cats.~>
 import contratracer.ContraTracer.nullTracer
 import java.util.concurrent.atomic.AtomicInteger
@@ -49,11 +48,11 @@ import scala.collection.mutable.ListBuffer
   * {{{
   *                  x : A
   *                    |
-  *           (xt.use &&& yt.use)    -- duplicates the input
+  *           (xt.runTracer &&& yt.runTracer)    -- duplicates the input
   *                    |
   *                +---+---+
   *                v       v
-  *              xt.use  yt.use      -- both sinks see the same A
+  *              xt.runTracer  yt.runTracer      -- both sinks see the same A
   *                |       |
   *                v       v
   *              (Unit, Unit) --discard--> Unit
@@ -70,7 +69,7 @@ import scala.collection.mutable.ListBuffer
   *               /         \
   *           Left(())     Right(a)
   *               |             |
-  *           squelch        this.use   <-- only emits on Right
+  *           squelch        this.runTracer   <-- only emits on Right
   *               |             |
   *               v             v
   *              Unit          Unit
@@ -125,7 +124,7 @@ class ContraTracerDemo extends AnyFunSuite:
     test("Demo 3 — contramap adapts the input type") {
         // Contravariant.contramap turns a ContraTracer[M, A] into a
         // ContraTracer[M, B] using a pure `B => A`. Internally this is
-        //     compute(f) >>> tracer.use   (i.e. Squelching >>> Emitting)
+        //     compute(f) >>> tracer.runTracer   (i.e. Squelching >>> Emitting)
         // which the composition table tells us is Emitting.
         val buf = ListBuffer.empty[String]
         val stringSink = bufferSink(buf)
@@ -140,7 +139,7 @@ class ContraTracerDemo extends AnyFunSuite:
     // --- Demo 4: Semigroup combine -----------------------------------------
 
     test("Demo 4 — Semigroup combine fans out to both sinks") {
-        // tr1 |+| tr2 == ContraTracer((tr1.use &&& tr2.use) >>> arrDiscard).
+        // tr1 |+| tr2 == ContraTracer((tr1.runTracer &&& tr2.runTracer) >>> arrDiscard).
         // Both sinks see the same input, and the (Unit, Unit) pair is dropped.
         val bufA = ListBuffer.empty[String]
         val bufB = ListBuffer.empty[String]
@@ -239,10 +238,10 @@ class ContraTracerDemo extends AnyFunSuite:
         )
     }
 
-    // --- Demo 8 (bonus): natTracer ----------------------------------------
+    // --- Demo 8 (bonus): mapK ----------------------------------------
 
-    test("Demo 8 — natTracer changes the underlying monad") {
-        // natTracer applies a natural transformation `M ~> N` to every
+    test("Demo 8 — mapK changes the underlying monad") {
+        // mapK applies a natural transformation `M ~> N` to every
         // Kleisli inside the arrow. Here we lift an IO tracer through the
         // identity natural transformation IO ~> IO just to show the
         // mechanics; in real code you might lift IO into a Kleisli/Reader
@@ -250,7 +249,7 @@ class ContraTracerDemo extends AnyFunSuite:
         val buf = ListBuffer.empty[String]
         val sink = bufferSink(buf)
         val ioToIo: IO ~> IO = new (IO ~> IO) { def apply[A](fa: IO[A]): IO[A] = fa }
-        val lifted: ContraTracer[IO, String] = sink.natTracer(ioToIo)
+        val lifted: ContraTracer[IO, String] = sink.mapK(ioToIo)
 
         lifted.traceWith("through-nat").unsafeRunSync()
 

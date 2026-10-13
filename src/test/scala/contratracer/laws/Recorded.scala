@@ -21,7 +21,7 @@ enum Ev:
 /** The monad law suites run tracers in: a writer whose log is every effect that ran, in order. */
 type W[A] = Writer[Chain[Ev], A]
 
-/** The target of `natTracer` in the naturality laws. */
+/** The target of `mapK` in the naturality laws. */
 type S[A] = State[Vector[Ev], A]
 
 object Recorded:

@@ -5,7 +5,6 @@ import cats.arrow.*
 import cats.syntax.all.*
 import contratracer.ContraTracer.nullTracer
 import contratracer.TracerA.Squelching
-import scala.annotation.unused
 
 /** A typed, composable contravariant tracer: a component emits typed events and stays unaware of
   * the logging backend, while the caller supplies the functions that format and render those events
@@ -18,7 +17,7 @@ import scala.annotation.unused
   *     fixed when the tracer is built: one emitting part anywhere, including one leg of `|+|`,
   *     makes the whole tracer emitting, and then every event is built.
   *   - **Composition.** Combine sinks with `|+|`, adapt the input with `contramap`, filter with
-  *     [[squelchUnless]] or [[traceMaybe]], or change the effect with [[natTracer]].
+  *     [[squelchUnless]] or [[traceMaybe]], or change the effect with [[mapK]].
   *
   * A tracer is an immutable value, safe to share across any number of fibers and threads. A sink
   * sees events in the order their `M[Unit]` values run, which can differ from the order of the
@@ -35,17 +34,23 @@ import scala.annotation.unused
   * @tparam A
   *   the event type this tracer consumes
   */
-case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M]) {
+final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Monad[M]) {
     import TracerA.given
-    import ContraTracer.given
 
     /** [[runTracer]] compiled to a plain function, once per tracer. Tracers are wired at
       * construction time and traced hot, and recompiling the arrow per trace allocates; the
-      * upstream Haskell gets the same effect from `INLINE traceWith` + GHC let-floating. A Scala 3
-      * lazy val is initialised once even when threads race to the first trace, which is what makes
-      * a shared tracer safe.
+      * upstream Haskell gets the same effect from `INLINE traceWith` + GHC let-floating. These are
+      * final fields set in the constructor, so a tracer shared across threads is safely published
+      * and every trace reads them without synchronisation.
       */
-    private lazy val compiled: A => M[Unit] = runTracer.compile
+    private val compiled: A => M[Unit] = runTracer.compile
+
+    private val squelching: Boolean = runTracer match {
+        case Squelching(_) => true
+        case _             => false
+    }
+
+    private val squelched: M[Unit] = Monad[M].unit
 
     /** Trace one event.
       *
@@ -64,17 +69,21 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
       * failure in a part that runs later fails the returned `M[Unit]`. A failing leg of `|+|` stops
       * the legs after it.
       */
-    def traceWith(a: => A): M[Unit] = runTracer match {
-        case Squelching(_) => squelched
-        case _             => compiled(a)
-    }
+    def traceWith(a: => A): M[Unit] = if squelching then squelched else compiled(a)
 
-    private lazy val squelched: M[Unit] = Monad[M].unit
-
-    /** The underlying arrow, the same value as `runTracer`, under upstream's name. Use it to embed
-      * this tracer in a larger [[TracerA]] expression.
+    /** Adapts the input with a pure function, run in front of this tracer. The result has this
+      * tracer's tag, so `f` never runs in front of a squelching tracer.
       */
-    def use: TracerA[M, A, Unit] = runTracer
+    def contramap[B](f: B => A): ContraTracer[M, B] =
+        ContraTracer.fromArrow(Arrow[[X, Y] =>> TracerA[M, X, Y]].lift(f) >>> runTracer)
+
+    /** Traces each event into this tracer, then into `that`, and emits if either leg emits. Nothing
+      * is caught: if this tracer fails, `that` does not run. `nullTracer` is the identity.
+      */
+    def |+|(that: ContraTracer[M, A]): ContraTracer[M, A] = {
+        val discard = Arrow[[X, Y] =>> TracerA[M, X, Y]].lift((_: (Unit, Unit)) => ())
+        ContraTracer.fromArrow((runTracer &&& that.runTracer) >>> discard)
+    }
 
     /** A tracer that traces `f(b)` when it is defined, and nothing otherwise.
       *
@@ -86,7 +95,7 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
             Arrow[[X, Y] =>> TracerA[M, X, Y]].lift((x: B) =>
                 f(x).map(Right(_)).getOrElse(Left(()))
             )
-        ContraTracer(classify >>> (TracerA.squelch ||| this.use))
+        ContraTracer.fromArrow(classify >>> (TracerA.squelch ||| runTracer))
     }
 
     /** [[traceMaybe]] with an effectful classifier. When this tracer emits, `f`'s effect runs on
@@ -95,7 +104,7 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
     def traceMaybeM[B](f: B => M[Option[A]]): ContraTracer[M, B] = {
         def classify: TracerA[M, B, Either[Unit, A]] =
             TracerA.effect((x: B) => f(x).map(_.map(Right(_)).getOrElse(Left(()))))
-        ContraTracer(classify >>> (TracerA.squelch ||| this.use))
+        ContraTracer.fromArrow(classify >>> (TracerA.squelch ||| runTracer))
     }
 
     /** A tracer that traces only the events satisfying `p`.
@@ -122,16 +131,15 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
       * `traceWith` returns, and the returned `M[Unit]` holds one effect per element. A `LazyList`
       * is walked as the returned `M[Unit]` runs.
       */
-    def traceTraversable[T[_]: Foldable]: ContraTracer[M, T[A]] = runTracer match {
-        case Squelching(_) => nullTracer
-        case _ => ContraTracer(TracerA.emit((t: T[A]) => Foldable[T].traverse_(t)(compiled)))
-    }
+    def traceTraversable[T[_]: Foldable]: ContraTracer[M, T[A]] =
+        if squelching then nullTracer
+        else ContraTracer.emit((t: T[A]) => Foldable[T].traverse_(t)(compiled))
 
     /** Traces every element of `f(b)` through this tracer: [[traceTraversable]] after `f`. When
       * this tracer squelches, `f` is never called.
       */
     def traceAll[T[_]: Foldable, B](f: (B => T[A])): ContraTracer[M, B] =
-        Contravariant[[X] =>> ContraTracer[M, X]].contramap(this.traceTraversable)(f)
+        traceTraversable[T].contramap(f)
 
     /** Adapts the input with an effectful function, run in front of this tracer.
       *
@@ -139,9 +147,8 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
       * then filters out with [[squelchUnless]] or [[traceMaybe]]. When this tracer squelches, `f`
       * never runs.
       */
-    def contramapM[B](f: B => M[A]): ContraTracer[M, B] = ContraTracer(
-      TracerA.effect(f) >>> this.use
-    )
+    def contramapM[B](f: B => M[A]): ContraTracer[M, B] =
+        ContraTracer.fromArrow(TracerA.effect(f) >>> runTracer)
 
     /** Changes the effect with a natural transformation, for instance to use an `IO` tracer inside
       * a monad transformer stack over `IO`.
@@ -156,66 +163,45 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
       * and running the result does not run it again. A squelching tracer stays squelching, and `h`
       * is never applied to it.
       */
-    def natTracer[N[_]: Monad, S](h: M ~> N): ContraTracer[N, A] = ContraTracer(
-      TracerA.nat(h)(this.use)
-    )
+    def mapK[N[_]: Monad](h: M ~> N): ContraTracer[N, A] =
+        ContraTracer.fromArrow(TracerA.nat(h)(runTracer))
 }
 
 object ContraTracer {
-    import TracerA.given
 
-    /** `contramap`: adapts the input with a pure function, run in front of the tracer. The result
-      * has the tracer's tag, so `f` never runs in front of a squelching tracer.
-      */
+    /** A tracer over an arrow built with [[TracerA]]'s combinators. */
+    def fromArrow[M[_]: Monad, A](runTracer: TracerA[M, A, Unit]): ContraTracer[M, A] =
+        new ContraTracer(runTracer)
+
+    /** [[ContraTracer.contramap]], for code generic over `Contravariant`. */
     given [M[_]: Monad]: Contravariant[[X] =>> ContraTracer[M, X]] with {
         override def contramap[A, B](tracer: ContraTracer[M, A])(f: B => A): ContraTracer[M, B] =
-            ContraTracer(Arrow[[X, Y] =>> TracerA[M, X, Y]].lift(f) >>> tracer.use)
+            tracer.contramap(f)
     }
 
-    /** `x |+| y` traces each event into `x`, then into `y`, and emits if either leg emits. Nothing
-      * is caught: if `x` fails, `y` does not run. The same `combine` as the `Monoid` given.
-      */
-    given [M[_]: Monad, S]: Semigroup[ContraTracer[M, S]] with {
-        override def combine(x: ContraTracer[M, S], y: ContraTracer[M, S]): ContraTracer[M, S] = {
-            def const[A, B](a: A)(@unused b: => B): A = a
-            def discard(tunit: (Unit, Unit)): Unit = const(())(tunit)
-            def arrDiscard = Arrow[[X, Y] =>> TracerA[M, X, Y]].lift(discard)
-            ContraTracer((x.use &&& y.use) >>> arrDiscard)
-        }
-    }
+    /** [[ContraTracer.|+|]] with [[ContraTracer.nullTracer]] as its identity. */
+    given [M[_]: Monad, A]: Monoid[ContraTracer[M, A]] with {
+        override def empty: ContraTracer[M, A] = nullTracer
 
-    /** `|+|` with [[ContraTracer.nullTracer]] as its identity. `x |+| y` traces each event into
-      * `x`, then into `y`, and emits if either leg emits. Nothing is caught: if `x` fails, `y` does
-      * not run.
-      */
-    given [M[_]: Monad, S]: Monoid[ContraTracer[M, S]] with {
-        override def empty: ContraTracer[M, S] = nullTracer
-
-        /** Nests right. `combine` runs its left tracer by a direct call when traced and its right
-          * one inside `flatMap`, so tracing a left-nested fold recurses once per tracer in any
-          * monad, while a right-nested one recurses only in a monad whose `flatMap` does. Fold
-          * tracers with this rather than a hand-written left fold of `|+|`.
+        /** Nests right. `|+|` runs its left tracer by a direct call when traced and its right one
+          * inside `flatMap`, so tracing a left-nested fold recurses once per tracer in any monad,
+          * while a right-nested one recurses only in a monad whose `flatMap` does. Fold tracers
+          * with this rather than a hand-written left fold of `|+|`.
           */
-        override def combineAll(as: IterableOnce[ContraTracer[M, S]]): ContraTracer[M, S] =
+        override def combineAll(as: IterableOnce[ContraTracer[M, A]]): ContraTracer[M, A] =
             combineAllOption(as).getOrElse(empty)
 
         override def combineAllOption(
-            as: IterableOnce[ContraTracer[M, S]]
-        ): Option[ContraTracer[M, S]] =
+            as: IterableOnce[ContraTracer[M, A]]
+        ): Option[ContraTracer[M, A]] =
             as.iterator.toVector.reduceRightOption(combine)
 
-        override def combine(x: ContraTracer[M, S], y: ContraTracer[M, S]): ContraTracer[M, S] = {
-            def const[A, B](a: A)(@unused b: => B): A = a
-            def discard(tunit: (Unit, Unit)): Unit = const(())(tunit)
-            def arrDiscard = Arrow[[X, Y] =>> TracerA[M, X, Y]].lift(discard)
-            ContraTracer((x.use &&& y.use) >>> arrDiscard)
-        }
+        override def combine(x: ContraTracer[M, A], y: ContraTracer[M, A]): ContraTracer[M, A] =
+            x |+| y
     }
 
     /** An emitting tracer that runs `f` on each event; the same as [[emit]]. */
-    def apply[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = ContraTracer(
-      TracerA.emit(f)
-    )
+    def apply[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = emit(f)
 
     /** A tracer that never emits: it builds no event and runs no stage composed over it. It is
       * `Monoid.empty`, the identity of `|+|`.
@@ -223,33 +209,12 @@ object ContraTracer {
       * Use it to silence a tracer. `ContraTracer(_ => M.unit)` discards events too, but it is an
       * emitting tracer, so every event is built and every stage in front of it runs.
       */
-    def nullTracer[M[_]: Monad, A]: ContraTracer[M, A] = ContraTracer(TracerA.squelch)
+    def nullTracer[M[_]: Monad, A]: ContraTracer[M, A] = fromArrow(TracerA.squelch)
 
     /** An emitting tracer that runs `f` on each event. Upstream's name; [[apply]] is the same.
       *
       * `f` itself can run when `traceWith` is called (see [[ContraTracer.traceWith]]), so keep it
       * cheap and put the work in the `M[Unit]` it returns.
       */
-    def emit[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = ContraTracer(
-      TracerA.emit(f)
-    )
-}
-
-/** Syntax for tracing through a `ContraTracer[M, A]` given in scope.
-  *
-  * The given is found by its exact type, because `A` is invariant. When the event's static type is
-  * a subtype of `A`, such as a case class extending a sealed trait, pass the type arguments.
-  */
-object ContraTracerSyntax {
-
-    /** [[ContraTracer.traceWith]] on the given tracer; the event is by-name here too. */
-    def traceWith[M[_], A](a: => A)(using ct: ContraTracer[M, A]): M[Unit] =
-        ct.traceWith(a)
-
-    def use[M[_], A](using ct: ContraTracer[M, A]): TracerA[M, A, Unit] = ct.runTracer
-
-    def traceMaybe[M[_], A, B](f: B => Option[A])(using
-        ct: ContraTracer[M, A]
-    ): ContraTracer[M, B] =
-        ct.traceMaybe(f)
+    def emit[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = fromArrow(TracerA.emit(f))
 }

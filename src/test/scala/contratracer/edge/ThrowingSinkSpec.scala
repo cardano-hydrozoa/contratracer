@@ -3,7 +3,6 @@ package contratracer.edge
 import cats.Id
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.syntax.all.*
 import contratracer.ContraTracer
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer
