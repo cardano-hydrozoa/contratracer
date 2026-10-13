@@ -41,6 +41,7 @@ class StackSafetySpec extends AnyFunSuite {
       Shape.ContramapChain,
       Shape.SquelchUnlessChain,
       Shape.CombineRight,
+      Shape.CombineAll,
       Shape.ArrowLeft,
       Shape.ArrowRight
     )
@@ -52,15 +53,24 @@ class StackSafetySpec extends AnyFunSuite {
     }
 
     /** `|+|` runs its left leg by a direct call, so a left-nested fold recurses once per level at
-      * call time, whatever the monad. `combineAll` folds left. A fix moves the left leg behind a
-      * `flatMap`, which costs every trace through `|+|`; that is a design decision.
+      * call time, whatever the monad. A fix moves the left leg behind a `flatMap`, which costs
+      * every trace through `|+|`; that is a design decision.
       */
-    for target <- List(eval, io); shape <- List(Shape.CombineLeft, Shape.CombineAll) do {
+    for target <- List(eval, io); shape <- List(Shape.CombineLeft) do {
         test(s"${target.name}: ${shape.label} of depth $deep overflows when traced") {
             assert(overflowsAtCall(target, shape, deep))
         }
         test(s"${target.name}: ${shape.label} of depth $deep should trace every sink") {
             pendingUntilFixed(assert(completes(target, shape, deep)): Unit)
         }
+    }
+
+    test("Monoid.combineAll nests right and keeps the order the tracers were given in") {
+        import cats.Monoid
+        import hydrozoa.lib.logging.ContraTracer
+        val seen = scala.collection.mutable.ListBuffer.empty[Int]
+        val legs = (1 to 5).toList.map(i => ContraTracer.emit[cats.Id, Int](_ => seen += i: Unit))
+        Monoid[ContraTracer[cats.Id, Int]].combineAll(legs).traceWith(0)
+        assert(seen.toList == List(1, 2, 3, 4, 5))
     }
 }

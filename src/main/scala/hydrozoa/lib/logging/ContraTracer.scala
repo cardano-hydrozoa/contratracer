@@ -138,6 +138,18 @@ object ContraTracer {
     given [M[_]: Monad, S]: Monoid[ContraTracer[M, S]] with {
         override def empty: ContraTracer[M, S] = nullTracer
 
+        /** Nests right. `combine` runs its left tracer by a direct call when traced and its right
+          * one inside `flatMap`, so tracing a left-nested fold recurses once per tracer in any
+          * monad, while a right-nested one recurses only in a monad whose `flatMap` does.
+          */
+        override def combineAll(as: IterableOnce[ContraTracer[M, S]]): ContraTracer[M, S] =
+            combineAllOption(as).getOrElse(empty)
+
+        override def combineAllOption(
+            as: IterableOnce[ContraTracer[M, S]]
+        ): Option[ContraTracer[M, S]] =
+            as.iterator.toVector.reduceRightOption(combine)
+
         override def combine(x: ContraTracer[M, S], y: ContraTracer[M, S]): ContraTracer[M, S] = {
             def const[A, B](a: A)(@unused b: => B): A = a
             def discard(tunit: (Unit, Unit)): Unit = const(())(tunit)
