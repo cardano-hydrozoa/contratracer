@@ -40,7 +40,11 @@ class ArrowGivensSuite extends AnyFunSuite:
 
 /** cats' Arrow laws against whatever `summon[Arrow]` returns, which is what an `Arrow` user gets.
   */
-class ArrowGivensLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
+class ArrowGivensLawsSuite
+    extends AnyFunSuite
+    with FunSuiteDiscipline
+    with Checkers
+    with LawEvaluations:
     checkAll(
       "summoned Arrow, Emits+tag",
       ArrowRules.arrow(Obs.Emits, true, summon[Arrow[TA]])

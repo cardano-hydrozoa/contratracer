@@ -74,7 +74,11 @@ object ContraRules:
 /** cats' Contravariant and Monoid laws for [[ContraTracer]], and ContravariantMonoidal for the
   * candidate instance in [[Candidates]].
   */
-class ContraTracerLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
+class ContraTracerLawsSuite
+    extends AnyFunSuite
+    with FunSuiteDiscipline
+    with Checkers
+    with LawEvaluations:
     checkAll("ContraTracer, traceWith+tag", ContraRules.contravariant)
     checkAll("ContraTracer, traceWith+tag", ContraRules.monoid)
     checkAll("ContraTracer candidate, traceWith+tag", ContraRules.contravariantMonoidal)

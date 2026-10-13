@@ -182,6 +182,9 @@ sbt test
 sbt scalafmtCheckAll   # formatting
 ```
 
+The cats law suites check each law 1,000 times. Before a release, run them at 5,000 on three seeds,
+as `LawEvaluations` describes.
+
 Uses sbt (see `project/build.properties`). A Nix flake provides a dev shell with a matching JDK, sbt
 and scalafmt:
 

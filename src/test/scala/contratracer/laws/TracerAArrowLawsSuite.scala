@@ -56,7 +56,11 @@ object ArrowRules:
   * mixing in `FunSuiteDiscipline` with more than one direct `test(...)` call fails to compile with
   * "[Internal error] unexpected tree" while inlining `test`.
   */
-class TracerAArrowLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
+class TracerAArrowLawsSuite
+    extends AnyFunSuite
+    with FunSuiteDiscipline
+    with Checkers
+    with LawEvaluations:
     private val categoryGiven = TracerA.arrowChoice[W]
     private val arrowChoiceGiven = TracerA.arrowChoice[W]
 
