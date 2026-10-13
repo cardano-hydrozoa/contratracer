@@ -29,13 +29,21 @@ import contratracer.TracerA.Squelching
   *
   * @param runTracer
   *   the underlying [[TracerA]] arrow this tracer runs
+  * @param isNullTracer
+  *   set by [[ContraTracer.nullTracer]] alone, so `|+|` can return the other side unchanged
   * @tparam M
   *   the effect monad events are emitted into
   * @tparam A
   *   the event type this tracer consumes
   */
-final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Monad[M]) {
+final class ContraTracer[M[_], A] private (
+    val runTracer: TracerA[M, A, Unit],
+    private[contratracer] val isNullTracer: Boolean
+)(using Monad[M]) {
     import TracerA.given
+
+    /** A tracer over `runTracer`, the same as [[ContraTracer.fromArrow]]. */
+    def this(runTracer: TracerA[M, A, Unit])(using Monad[M]) = this(runTracer, false)
 
     /** [[runTracer]] compiled to a plain function, once per tracer. Tracers are wired at
       * construction time and traced hot, and recompiling the arrow per trace allocates; the
@@ -75,12 +83,20 @@ final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Mona
         ContraTracer.fromArrow(Arrow[[X, Y] =>> TracerA[M, X, Y]].lift(f) >>> runTracer)
 
     /** Traces each event into this tracer, then into `that`, and emits if either leg emits. Nothing
-      * is caught: if this tracer fails, `that` does not run. `nullTracer` is the identity.
+      * is caught: if this tracer fails, `that` does not run.
+      *
+      * `nullTracer` is the identity, and costs nothing: when either side is a `nullTracer`, the
+      * result is the other side itself. A tracer derived from one, such as
+      * `nullTracer.contramap(f)` or `nullTracer.mapK(h)`, is combined in full, and runs its stages
+      * when the other side emits.
       */
-    def |+|(that: ContraTracer[M, A]): ContraTracer[M, A] = {
-        val discard = Arrow[[X, Y] =>> TracerA[M, X, Y]].lift((_: (Unit, Unit)) => ())
-        ContraTracer.fromArrow((runTracer &&& that.runTracer) >>> discard)
-    }
+    def |+|(that: ContraTracer[M, A]): ContraTracer[M, A] =
+        if that.isNullTracer then this
+        else if isNullTracer then that
+        else {
+            val discard = Arrow[[X, Y] =>> TracerA[M, X, Y]].lift((_: (Unit, Unit)) => ())
+            ContraTracer.fromArrow((runTracer &&& that.runTracer) >>> discard)
+        }
 
     /** A tracer that traces `f(b)` when it is defined, and nothing otherwise.
       *
@@ -201,8 +217,12 @@ object ContraTracer {
       *
       * Use it to silence a tracer. `ContraTracer(_ => M.unit)` discards events too, but it is an
       * emitting tracer, so every event is built and every stage in front of it runs.
+      *
+      * `t |+| nullTracer` and `nullTracer |+| t` are `t` itself. Only this method makes a tracer
+      * that `|+|` drops: one squelching for any other reason may still have stages to run when the
+      * other side emits.
       */
-    def nullTracer[M[_]: Monad, A]: ContraTracer[M, A] = fromArrow(TracerA.squelch)
+    def nullTracer[M[_]: Monad, A]: ContraTracer[M, A] = new ContraTracer(TracerA.squelch, true)
 
     /** An emitting tracer that runs `f` on each event. Upstream's name; [[apply]] is the same. */
     def emit[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = fromArrow(TracerA.emit(f))

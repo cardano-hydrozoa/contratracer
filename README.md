@@ -92,7 +92,7 @@ Code that should run under more than one effect takes `[F[_]: Monad]` and a
 ### Combine with `|+|`
 
 `a |+| b` traces each event into `a`, then into `b`. `ContraTracer.nullTracer` traces nothing and is
-the identity, so it is also `Monoid.empty`. Fold a list of tracers with `combineAll`. Like
+the identity, so it is also `Monoid.empty`; `a |+| nullTracer` is `a` itself, at no cost. Fold a list of tracers with `combineAll`. Like
 `contramap`, `|+|` is a method on the tracer; only `combineAll` needs cats syntax:
 
 ```scala
