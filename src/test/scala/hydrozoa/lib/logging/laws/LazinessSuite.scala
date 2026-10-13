@@ -97,13 +97,8 @@ class LazinessSuite extends AnyFunSuite:
         assert(log(Laziness.squelchedPipeline.traceWith(0)).isEmpty)
     }
 
-    // Pending until traceWith takes its argument by name. Today the argument is evaluated before
-    // traceWith is entered, so the counter reaches 1. When by-name lands, this block passes and
-    // pendingUntilFixed fails the test: that failure is the signal to drop the wrapper.
-    test("S1 a squelching tracer never forces its argument (needs by-name traceWith)") {
-        pendingUntilFixed {
-            val forced = new AtomicInteger(0)
-            val _ = ContraTracer.nullTracer[W, Int].traceWith { forced.incrementAndGet(); 0 }
-            assert(forced.get == 0): Unit
-        }
+    test("S1 a squelching tracer never forces its argument") {
+        val forced = new AtomicInteger(0)
+        val _ = ContraTracer.nullTracer[W, Int].traceWith { forced.incrementAndGet(); 0 }
+        assert(forced.get == 0)
     }
