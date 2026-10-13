@@ -42,8 +42,17 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
     private lazy val compiled: A => M[Unit] = runTracer.compile
 
     /** Run a tracer with a given input.
+      *
+      * The input is by-name. A squelching tracer never evaluates it, so building an expensive event
+      * costs nothing when nothing would emit it. An emitting tracer evaluates it exactly once, when
+      * `traceWith` is called rather than when the returned `M[Unit]` runs.
       */
-    def traceWith(a: A): M[Unit] = compiled(a)
+    def traceWith(a: => A): M[Unit] = runTracer match {
+        case Squelching(_) => squelched
+        case _             => compiled(a)
+    }
+
+    private lazy val squelched: M[Unit] = Monad[M].unit
 
     /** -- | Inverse of 'arrow'. Useful when writing arrow tracers which use a -- contravariant
       * tracer (the newtype in this module).
@@ -85,7 +94,7 @@ case class ContraTracer[M[_], A](runTracer: TracerA[M, A, Unit])(using Monad[M])
 
     def traceTraversable[T[_]: Foldable]: ContraTracer[M, T[A]] = runTracer match {
         case Squelching(_) => nullTracer
-        case _ => ContraTracer(TracerA.emit((t: T[A]) => Foldable[T].traverse_(t)(this.traceWith)))
+        case _ => ContraTracer(TracerA.emit((t: T[A]) => Foldable[T].traverse_(t)(compiled)))
     }
 
     def traceAll[T[_]: Foldable, B](f: (B => T[A])): ContraTracer[M, B] =
@@ -161,7 +170,7 @@ object ContraTracer {
   */
 object ContraTracerSyntax {
 
-    def traceWith[M[_], A](a: A)(using ct: ContraTracer[M, A]): M[Unit] =
+    def traceWith[M[_], A](a: => A)(using ct: ContraTracer[M, A]): M[Unit] =
         ct.traceWith(a)
 
     def use[M[_], A](using ct: ContraTracer[M, A]): TracerA[M, A, Unit] = ct.runTracer

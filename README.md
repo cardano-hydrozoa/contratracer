@@ -15,9 +15,10 @@ can't:
 
 - **Laziness / free silencing.** A squelching (no-op) tracer — e.g. `Monoid.empty` /
   `ContraTracer.nullTracer` — skips all upstream `contramapM` / predicate / payload-construction
-  work. The argument is never forced, and a squelched `traceWith` compiles to a constant `unit`, so
-  it is allocation-free on the JVM. With a bare `A => M[Unit]` the predicate must be forced no matter
-  what, because you can't know a priori whether the function will emit.
+  work. `traceWith` takes its argument by name, so a squelching tracer never builds the event, and
+  returns a cached `unit`; an emitting tracer builds it exactly once. With a bare `A => M[Unit]` the
+  event and the predicate must be computed no matter what, because you can't know a priori whether
+  the function will emit.
 - **Composition.** Combine sinks with `|+|` (`Semigroup` / `Monoid`), narrow the input type with
   `contramap`, gate emission with `squelchUnless` / `traceMaybe`, or swap the effect with a natural
   transformation via `natTracer`.
@@ -29,7 +30,7 @@ depend on a release tag:
 
 ```scala
 resolvers += "jitpack" at "https://jitpack.io"
-libraryDependencies += "com.github.cardano-hydrozoa" % "contratracer" % "0.1.1"
+libraryDependencies += "com.github.cardano-hydrozoa" % "contratracer" % "0.2.0"
 ```
 
 Note the **single `%`**: JitPack re-serves the built `contratracer_3` artifact under the repo name
