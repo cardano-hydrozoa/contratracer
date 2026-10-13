@@ -77,9 +77,15 @@ final class KeyedTracer[M[_], K, A](
     /** Traces each event into this tracer, then into `that`. A key is enabled when either tracer
       * enables it, and each tracer still receives only the keys its own `enabled` accepts. The
       * other contracts are `ContraTracer.|+|`'s; [[KeyedTracer.nullTracer]] is the identity.
+      *
+      * A side whose `tracer` is a `ContraTracer.nullTracer` receives nothing, whatever its
+      * `enabled` says, so the result is the other side itself: its `enabled` is not widened, and a
+      * trace pays for no fan-out.
       */
     def |+|(that: KeyedTracer[M, K, A]): KeyedTracer[M, K, A] =
-        KeyedTracer(k => enabled(k) || that.enabled(k), filtered |+| that.filtered)
+        if that.tracer.isNullTracer then this
+        else if tracer.isNullTracer then that
+        else KeyedTracer(k => enabled(k) || that.enabled(k), filtered |+| that.filtered)
 
     /** Changes the effect with a natural transformation, as `ContraTracer.mapK` does. `enabled` is
       * unchanged.

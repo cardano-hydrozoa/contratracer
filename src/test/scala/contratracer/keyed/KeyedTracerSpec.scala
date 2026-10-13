@@ -161,6 +161,17 @@ class KeyedTracerSpec extends AnyFunSuite {
         )
     }
 
+    test("|+| with a nullTracer leg is the other side itself, its enabled unwidened") {
+        val out = ListBuffer.empty[String]
+        val t = sink[WeaverEvent](Logger.at(Level.Warn), out)
+        val n = KeyedTracer.nullTracer[Id, Level, WeaverEvent]
+        val keen = KeyedTracer[Id, Level, WeaverEvent](_ => true, ContraTracer.nullTracer)
+        val _ = assert(List(t |+| n, n |+| t, t |+| keen, keen |+| t).forall(_ eq t))
+        // The keen leg would have enabled Info; dropped, the event is not built.
+        (t |+| keen).traceAt(Level.Info)(boom[WeaverEvent])
+        assert(out.isEmpty)
+    }
+
     test("contramap and mapK keep enabled") {
         val out = ListBuffer.empty[String]
         val t = sink[WeaverEvent](Logger.at(Level.Info), out)
