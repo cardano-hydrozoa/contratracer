@@ -88,9 +88,11 @@ final class KeyedTracer[M[_], K, A](
         KeyedTracer(enabled, tracer.mapK(h))
 
     /** The plain tracer this one means: `tracer`, passed only the keys `enabled` accepts. It
-      * squelches when `tracer` does.
+      * squelches when `tracer` does. Its `traceWith` builds the event before asking `enabled`, so
+      * it serves `|+|` and the laws, never a call site.
       */
-    def filtered: ContraTracer[M, (K, A)] = tracer.squelchUnless((k, _) => enabled(k))
+    private[contratracer] def filtered: ContraTracer[M, (K, A)] =
+        tracer.squelchUnless((k, _) => enabled(k))
 }
 
 object KeyedTracer {
