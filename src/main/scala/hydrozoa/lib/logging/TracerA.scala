@@ -203,7 +203,7 @@ object TracerA:
         def lift[A, B](f: A => B): TracerA[M, A, B] = TracerAOps.lift(f)
 
         def compose[A, B, C](f: TracerA[M, B, C], g: TracerA[M, A, B]): TracerA[M, A, C] =
-            compose(f, g)
+            TracerAOps.compose(f, g)
 
         // This type checks, but I'm not totally certain its correct.
         // The manual implementation would look like:
