@@ -23,7 +23,8 @@ with the Scala suffix stripped (`contratracer`), so `%%` would not resolve. The 
 Scala 3 artifact regardless. You can also track a branch (`"main-SNAPSHOT"`) or a specific commit
 hash in place of the tag.
 
-The only runtime dependency is `cats-core`.
+The core library's only runtime dependency is `cats-core`. The optional modules under
+[Modules](#modules) add their own.
 
 ## Usage
 
@@ -125,6 +126,48 @@ fixed.
 [`ContraTracerDemo.scala`](src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
 tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `mapK` and silencing.
 
+### Skip disabled events with `KeyedTracer`
+
+An emitting tracer builds every event, because only the sink knows whether the backend wants it. A
+`KeyedTracer[M, K, A]` asks first: each event travels with a key known before the event exists,
+such as a level, and `enabled(key)` decides whether the event is built at all.
+
+State the key at the call with `traceAt`, or put a `TraceKey` beside the event type and call
+`traceWith`, which finds it from the argument's static type:
+
+```scala
+import contratracer.{KeyedTracer, TraceKey}
+
+sealed trait WeaverEvent
+object WeaverEvent:
+    final case class Produced(block: Int) extends WeaverEvent
+    object Produced:
+        given TraceKey[Level, Produced] = TraceKey.const(Level.Info)
+
+    final case class WakeupIgnored(block: Int, isFuture: Boolean) extends WeaverEvent
+    object WakeupIgnored:
+        given TraceKey[Level, WakeupIgnored] =
+            TraceKey.byValue(Level.Warn)(w => if w.isFuture then Level.Warn else Level.Info)
+
+def weaver(tracer: KeyedTracer[IO, Level, WeaverEvent]): IO[Unit] =
+    tracer.traceWith(WeaverEvent.Produced(1)) >>
+        tracer.traceAt(Level.Debug)(WeaverEvent.Produced(2))
+```
+
+- **`TraceKey.byValue(bound)(keyOf)`** is for a key that depends on the event's fields. `bound`
+  gates before the event is built, then `keyOf` names the event's own key. `bound` must be the most
+  severe key the event can take; a lower one drops events whose own key is enabled.
+- **Enums.** An enum case's `apply` returns the enum type, so `traceWith(Received(1))` looks for an
+  instance for the whole enum. Give the enum one `TraceKey.byValue` at its most severe level, or
+  state the level at the call with `traceAt`. Under the first, a case below the enum's most severe
+  level is built whenever that level is enabled, and then refused.
+- **Composition.** `contramap`, `|+|` and `mapK` work as on `ContraTracer`. With `|+|`, a key is
+  enabled when either side enables it, and each side still receives only the keys it enables.
+  `KeyedTracer.always(tracer)` enables every key, for a recording tracer in tests;
+  `KeyedTracer.nullTracer` enables none and is the identity.
+
+`contratracer-slf4j` provides a keyed sink over an SLF4J logger.
+
 ## How a tracer behaves
 
 - **Emitting or squelching.** Every tracer is one or the other, fixed when it is built.
@@ -150,7 +193,8 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   format on every trace, whatever level the backend has enabled. Put values already in hand into
   the event: ids, sizes, references. Leave `toString`, hex encoding and pretty-printing to the
   format, and hand the message to the backend lazily, as `Eval.later` does above. A `val` holding
-  the message in a format branch renders it before the level check.
+  the message in a format branch renders it before the level check. To skip building events the
+  backend would drop, trace through a `KeyedTracer`.
 - **Silence a tracer with `nullTracer`.** `ContraTracer(_ => IO.unit)` discards events, but it is
   emitting, so every event is still built and every stage in front of it still runs.
   `squelchUnless` does not silence either: over an emitting tracer, every event is still built and
@@ -166,6 +210,39 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   tracing recurses once per level and can overflow a default thread stack from about a thousand
   levels.
 
+## Modules
+
+Each module depends on the core library and is published beside it from the same build. JitPack
+documents multi-module coordinates as the group `com.github.cardano-hydrozoa.contratracer` with the
+module's name as the artifact.
+
+### `contratracer-slf4j`
+
+Keyed sinks over SLF4J, with no logging backend. It adds `slf4j-api` and `cats-effect-kernel`.
+
+- **`Level`** is SLF4J's five levels, and **`Severity[E]`** is `TraceKey[Level, E]`, written
+  `Severity(Level.Info)` or `Severity.byValue(Level.Warn)(levelOf)`.
+- **`Slf4jSink.keyed(logger)(render)`** is a `KeyedTracer[F, Level, A]` bound to one logger when
+  it is wired. It asks the logger whether the event's level is enabled before the event is built,
+  on every trace, so a level changed at run time is followed. `render` runs only for an enabled
+  event, when the traced effect runs. It calls SLF4J directly and leaves the MDC alone.
+- **`Slf4jSink.squelchedIfDisabled(logger, levels)(tracer)`** returns `nullTracer` when the logger
+  has none of `levels` enabled at wiring. It never follows a later level change.
+
+With `WeaverEvent`'s keys written over this module's `Level`, as
+`given Severity[Produced] = Severity(Level.Info)`, the events wire straight to a logger:
+
+```scala
+import contratracer.slf4j.{Level, Severity, Slf4jSink}
+import org.slf4j.LoggerFactory
+
+val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
+    Slf4jSink.keyed[IO, WeaverEvent](LoggerFactory.getLogger("weaver")) {
+        case WeaverEvent.Produced(n)         => s"produced block $n"
+        case WeaverEvent.WakeupIgnored(n, _) => s"ignored a wakeup for block $n"
+    }
+```
+
 ## Layout
 
 - `ContraTracer.scala`: the user-facing tracer (`traceWith`, `contramap`, `|+|`, `traceMaybe`,
@@ -173,6 +250,9 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   `Contravariant` and `Monoid` instances.
 - `TracerA.scala`: the underlying tagged Kleisli arrow (`Emitting` / `Squelching`), its
   `ArrowChoice` instance, and the compile step that makes a squelched trace allocation-free.
+- `KeyedTracer.scala`: `KeyedTracer`, which asks with a key before building an event, and
+  `TraceKey`, the key an event's type carries.
+- `contratracer-slf4j/`: the SLF4J module.
 
 ## Building
 
