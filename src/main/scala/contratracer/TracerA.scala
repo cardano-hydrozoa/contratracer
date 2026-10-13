@@ -215,33 +215,10 @@ object TracerA:
         }
     }
 
-    given [M[_]: Monad]: Category[[X, Y] =>> TracerA[M, X, Y]] with {
-        def id[A]: TracerA[M, A, A] = compute(x => x)
-
-        def compose[A, B, C](f: TracerA[M, B, C], g: TracerA[M, A, B]): TracerA[M, A, C] =
-            TracerAOps.compose(f, g)
-    }
-
-    given [M[_]: Monad]: Arrow[[X, Y] =>> TracerA[M, X, Y]] with {
-        def lift[A, B](f: A => B): TracerA[M, A, B] = TracerAOps.lift(f)
-
-        def compose[A, B, C](f: TracerA[M, B, C], g: TracerA[M, A, B]): TracerA[M, A, C] =
-            TracerAOps.compose(f, g)
-
-        def first[A, B, C](fa: TracerA[M, A, B]): TracerA[M, (A, C), (B, C)] = TracerAOps.first(fa)
-
-        override def split[A, B, C, D](
-            f: TracerA[M, A, B],
-            g: TracerA[M, C, D]
-        ): TracerA[M, (A, C), (B, D)] = TracerAOps.split(f, g)
-
-        override def merge[A, B, C](
-            f: TracerA[M, A, B],
-            g: TracerA[M, A, C]
-        ): TracerA[M, A, (B, C)] = TracerAOps.merge(f, g)
-    }
-
-    given [M[_]: Monad]: ArrowChoice[[X, Y] =>> TracerA[M, X, Y]] with {
+    /** The one instance for [[TracerA]]. It is also its `Arrow`, `Category` and `Compose`, so every
+      * summon of those classes, under any Scala 3 given-resolution rule, lands on this instance.
+      */
+    given arrowChoice[M[_]: Monad]: ArrowChoice[[X, Y] =>> TracerA[M, X, Y]] with {
         def lift[A, B](f: A => B): TracerA[M, A, B] = TracerAOps.lift(f)
 
         def choose[A, B, C, D](

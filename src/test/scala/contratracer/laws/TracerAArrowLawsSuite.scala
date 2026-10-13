@@ -57,8 +57,8 @@ object ArrowRules:
   * "[Internal error] unexpected tree" while inlining `test`.
   */
 class TracerAArrowLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
-    private val categoryGiven = TracerA.given_Category_TracerA[W]
-    private val arrowChoiceGiven = TracerA.given_ArrowChoice_TracerA[W]
+    private val categoryGiven = TracerA.arrowChoice[W]
+    private val arrowChoiceGiven = TracerA.arrowChoice[W]
 
     checkAll("Category given, Emits+tag", ArrowRules.category(Obs.Emits, true, categoryGiven))
     checkAll("Category given, Full+tag", ArrowRules.category(Obs.Full, true, categoryGiven))
@@ -82,7 +82,7 @@ class TracerAArrowLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Che
   * when.
   */
 class TracerAArrowDeparturesSuite extends AnyFunSuite:
-    val arrowChoiceGiven: ArrowChoice[TA] = TracerA.given_ArrowChoice_TracerA[W]
+    val arrowChoiceGiven: ArrowChoice[TA] = TracerA.arrowChoice[W]
     val departure: List[String] = List("arrowChoice.split consistent with andThen")
     val pairIn: (Boolean, Boolean) = (true, false)
 

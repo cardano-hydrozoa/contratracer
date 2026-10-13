@@ -7,9 +7,9 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.Checkers
 import org.typelevel.discipline.scalatest.FunSuiteDiscipline
 
-/** Every `compose` [[TracerA]] offers, named or summoned, must compose. A summon on Scala 3.3
-  * reaches only the most specific given (ArrowChoice); Scala 3.7 prefers the most general one that
-  * fits, so `summon[Arrow]` reaches the Arrow given. Both are checked here by name.
+/** Every `compose` [[TracerA]] offers, named or summoned, must compose. Scala 3.3 resolves a summon
+  * to the most specific given that fits and Scala 3.7 to the most general, so the library keeps a
+  * single instance; each class is summoned here to check every summon lands on it.
   */
 class ArrowGivensSuite extends AnyFunSuite:
     private val emitter: TA[Int, Unit] = TracerA.emit[W, Int](a => emitted(1, a))
@@ -17,9 +17,7 @@ class ArrowGivensSuite extends AnyFunSuite:
         TracerA.effect[W, Int, Int](a => effected(2, a).map(_ => a + 1))
 
     private val instances: List[(String, Compose[TA])] = List(
-      "named Category given" -> TracerA.given_Category_TracerA[W],
-      "named Arrow given" -> TracerA.given_Arrow_TracerA[W],
-      "named ArrowChoice given" -> TracerA.given_ArrowChoice_TracerA[W],
+      "named instance" -> TracerA.arrowChoice[W],
       "summoned Compose" -> summon[Compose[TA]],
       "summoned Category" -> summon[Category[TA]],
       "summoned Arrow" -> summon[Arrow[TA]],
@@ -40,11 +38,10 @@ class ArrowGivensSuite extends AnyFunSuite:
         }
     }
 
-/** cats' Arrow laws against the Arrow given by name: its `second`, `dimap` and `andThen` route
-  * through its own `compose`, which no summon on Scala 3.3 reaches.
+/** cats' Arrow laws against whatever `summon[Arrow]` returns, which is what an `Arrow` user gets.
   */
 class ArrowGivensLawsSuite extends AnyFunSuite with FunSuiteDiscipline with Checkers:
     checkAll(
-      "named Arrow given, Emits+tag",
-      ArrowRules.arrow(Obs.Emits, true, TracerA.given_Arrow_TracerA[W])
+      "summoned Arrow, Emits+tag",
+      ArrowRules.arrow(Obs.Emits, true, summon[Arrow[TA]])
     )
