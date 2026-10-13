@@ -45,7 +45,7 @@ class StackSafetySpec extends AnyFunSuite {
         }
     }
 
-    test("Monoid.combineAll nests right and keeps the order the tracers were given in") {
+    test("Monoid.combineAll keeps the order the tracers were given in") {
         import cats.Monoid
         import contratracer.ContraTracer
         val seen = scala.collection.mutable.ListBuffer.empty[Int]

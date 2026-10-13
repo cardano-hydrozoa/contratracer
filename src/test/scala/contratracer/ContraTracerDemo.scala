@@ -19,7 +19,7 @@ import scala.collection.mutable.ListBuffer
   *     which is one of:
   *
   *     Emitting(emits, noEmits)
-  *       emits  : Kleisli[M, A, X]   <-- runs on traceWith
+  *       emits  : Kleisli[M, A, X]   <-- runs when traced
   *       noEmits: Kleisli[M, X, Unit] <-- DROPPED by runTracerA
   *
   *     Squelching(k)
@@ -43,7 +43,7 @@ import scala.collection.mutable.ListBuffer
   *   Emitting         Emitting          Emitting      both emits preserved
   * }}}
   *
-  * ==Fan-out via Semigroup `combine`==
+  * ==Fan-out via `|+|`==
   *
   * {{{
   *                  x : A
@@ -136,9 +136,9 @@ class ContraTracerDemo extends AnyFunSuite:
         assert(buf.toList == List("42") && tag(intSink) == "Emitting")
     }
 
-    // --- Demo 4: Semigroup combine -----------------------------------------
+    // --- Demo 4: |+| -------------------------------------------------------
 
-    test("Demo 4 — Semigroup combine fans out to both sinks") {
+    test("Demo 4 — |+| fans out to both sinks") {
         // tr1 |+| tr2 == ContraTracer((tr1.runTracer &&& tr2.runTracer) >>> arrDiscard).
         // Both sinks see the same input, and the (Unit, Unit) pair is dropped.
         val bufA = ListBuffer.empty[String]

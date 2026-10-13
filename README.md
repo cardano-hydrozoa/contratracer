@@ -48,7 +48,6 @@ the SLF4J sink belong to the application.
 ```scala
 import cats.Eval
 import cats.effect.IO
-import cats.syntax.all.* // contramap and |+| come from cats syntax
 import contratracer.ContraTracer
 import org.slf4j.LoggerFactory
 
@@ -93,9 +92,12 @@ Code that should run under more than one effect takes `[F[_]: Monad]` and a
 ### Combine with `|+|`
 
 `a |+| b` traces each event into `a`, then into `b`. `ContraTracer.nullTracer` traces nothing and is
-the identity, so it is also `Monoid.empty`. Fold a list of tracers with `combineAll`:
+the identity, so it is also `Monoid.empty`. Fold a list of tracers with `combineAll`. Like
+`contramap`, `|+|` is a method on the tracer; only `combineAll` needs cats syntax:
 
 ```scala
+import cats.syntax.all.* // combineAll
+
 val both: ContraTracer[IO, FetcherEvent] = fetcherTracer |+| metricsTracer
 val all: ContraTracer[IO, FetcherEvent] = List(fetcherTracer, metricsTracer, auditTracer).combineAll
 ```
@@ -121,7 +123,7 @@ fibers at once. Assert on each fiber's own order, or on membership; across fiber
 fixed.
 
 [`ContraTracerDemo.scala`](src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
-tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `natTracer` and silencing.
+tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `mapK` and silencing.
 
 ## How a tracer behaves
 
@@ -130,13 +132,13 @@ tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `natTracer` and silen
   building the event or running any stage. One emitting part anywhere, including one leg of `|+|`,
   makes the whole tracer emitting.
 - **The event is by-name.** An emitting tracer builds it exactly once, when `traceWith` is called.
-- **What runs at the call.** In a monad that suspends, such as `IO`, the call evaluates the event
-  and runs the function given to an `emit` leaf with nothing composed in front of it. Every other
-  stage runs when the returned `IO` runs, and again each time it runs: in
-  `slf4j.contramap(format)`, both `format` and the sink. In `Id`, everything runs at the call.
+- **What runs at the call.** Only the event. Every stage and sink runs when the returned effect
+  runs, and again each time it runs: in `slf4j.contramap(format)`, both `format` and the sink. In
+  `Id`, that is at the call.
 - **Order.** `a |+| b` traces into `a`, then `b`. A sink sees events in the order their effects run.
   Across fibers, only each fiber's own order holds.
-- **Errors.** Nothing is caught. A failing leg of `|+|` stops the legs after it.
+- **Errors.** Nothing is caught. An event that fails to build is thrown out of `traceWith`; a
+  failing stage or sink fails the returned effect. A failing leg of `|+|` stops the legs after it.
 - **Sharing.** A tracer is an immutable value; share one across any number of fibers.
 - **No queue, no thread.** A sink runs on the fiber that runs the traced effect.
 
@@ -158,20 +160,19 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   (`guaranteeCase`).
 - **A blocking sink holds compute threads.** A sink that writes synchronously inside `IO.delay`
   blocks a compute worker and delays unrelated fibers. Log through an asynchronous appender, or wrap
-  the write in `IO.blocking`, which can cost a thread handoff per trace. Keep an `emit` function
-  itself cheap too, since it can run at the call.
-- **Fold tracers with `combineAll`.** It nests to the right, which is stack-safe in `IO` and `Eval`.
-  A hand-written left fold such as `tracers.reduce(_ |+| _)` recurses once per tracer when traced,
-  and overflows the stack at a few thousand tracers.
+  the write in `IO.blocking`, which can cost a thread handoff per trace.
+- **Deep compositions overflow in `Id`.** In `IO` and `Eval`, tracing is stack-safe at any depth of
+  `contramap`, filters or `|+|`, folded in either direction. `Id` has no stack-safe `flatMap`, so
+  tracing recurses once per level and can overflow a default thread stack from about a thousand
+  levels.
 
 ## Layout
 
-- `ContraTracer.scala`: the user-facing tracer (`traceWith`, `traceMaybe`, `squelchUnless`,
-  `contramapM`, `traceTraversable`, `natTracer`, their `M` forms), its `Contravariant`,
-  `Semigroup` and `Monoid` instances, and `ContraTracerSyntax` for a tracer given in scope.
-- `TracerA.scala`: the underlying tagged Kleisli arrow (`Emitting` / `Squelching`), its `Category`,
-  `Arrow` and `ArrowChoice` instances, and the compile step that makes a squelched trace
-  allocation-free.
+- `ContraTracer.scala`: the user-facing tracer (`traceWith`, `contramap`, `|+|`, `traceMaybe`,
+  `squelchUnless`, `contramapM`, `traceTraversable`, `mapK`, their `M` forms) and its
+  `Contravariant` and `Monoid` instances.
+- `TracerA.scala`: the underlying tagged Kleisli arrow (`Emitting` / `Squelching`), its
+  `ArrowChoice` instance, and the compile step that makes a squelched trace allocation-free.
 
 ## Building
 

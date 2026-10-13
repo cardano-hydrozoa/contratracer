@@ -56,18 +56,15 @@ final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Mona
       *
       * The event is by-name. A squelching tracer never evaluates it, so building an expensive event
       * costs nothing when nothing would emit it. An emitting tracer evaluates it exactly once, when
-      * `traceWith` is called rather than when the returned `M[Unit]` runs.
+      * `traceWith` is called.
       *
-      * When `M` suspends (`IO`, `Eval`, `State`), the call also runs the function given to an
-      * [[ContraTracer.emit]] leaf with nothing composed in front of it: the tracer itself, or the
-      * leftmost leg of `|+|`. Everything else runs when the returned `M[Unit]` runs, and again on
-      * each further run: every stage composed in front of a sink (`contramap`, `contramapM`,
-      * `squelchUnless`, `traceMaybe` and their `M` forms) and every later leg of `|+|`. In `Id`,
-      * everything runs at the call.
+      * The call evaluates the event and nothing else. The stages and sinks, in every leg of `|+|`,
+      * run when the returned `M[Unit]` runs, and again on each further run. When `M` does not
+      * suspend, as with `Id`, that is at the call.
       *
-      * Nothing is caught. A failure in a part that runs at the call is thrown out of `traceWith`; a
-      * failure in a part that runs later fails the returned `M[Unit]`. A failing leg of `|+|` stops
-      * the legs after it.
+      * Nothing is caught. An event that fails to build is thrown out of `traceWith`. A failing
+      * stage or sink fails the returned `M[Unit]` when it runs, the way `M` reports failures: `IO`
+      * raises it, `Eval` and `Id` throw it. A failing leg of `|+|` stops the legs after it.
       */
     def traceWith(a: => A): M[Unit] = if squelching then squelched else compiled(a)
 
@@ -125,11 +122,10 @@ final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Mona
       * order.
       *
       * When this tracer squelches, the result is [[ContraTracer.nullTracer]] and the structure is
-      * never touched. Otherwise the elements go through `Foldable[T].traverse_`, so `T` decides
-      * when each is visited. For a strict structure such as `List` or `Vector` in a suspending
-      * monad, the call-time part of this tracer (see [[traceWith]]) runs for every element before
-      * `traceWith` returns, and the returned `M[Unit]` holds one effect per element. A `LazyList`
-      * is walked as the returned `M[Unit]` runs.
+      * never touched. Otherwise the elements go through `Foldable[T].traverse_` when the returned
+      * `M[Unit]` runs, each traced in full before the next. For a strict structure such as `List`
+      * or `Vector` in `IO`, the traversal first builds one effect per element and then runs them; a
+      * `LazyList` is walked one element at a time.
       */
     def traceTraversable[T[_]: Foldable]: ContraTracer[M, T[A]] =
         if squelching then nullTracer
@@ -157,11 +153,10 @@ final class ContraTracer[M[_], A](val runTracer: TracerA[M, A, Unit])(using Mona
       * on how this tracer was built: transforming `a |+| b` need not equal combining the
       * transformed `a` and `b`.
       *
-      * `h` is applied once per trace, with the timing of an `emit` leaf's function (see
-      * [[traceWith]]): at the call, unless a stage is composed in front of the result. From a monad
-      * that does not suspend, such as `Id` into `IO`, the original sink therefore runs at the call,
-      * and running the result does not run it again. A squelching tracer stays squelching, and `h`
-      * is never applied to it.
+      * `h` is applied once each time the returned `N[Unit]` runs, to the whole emitting arrow's
+      * result. From a monad that does not suspend, such as `Id` into `IO`, the original sink runs
+      * as `h`'s argument, so it too runs each time the `IO` runs. A squelching tracer stays
+      * squelching, and `h` is never applied to it.
       */
     def mapK[N[_]: Monad](h: M ~> N): ContraTracer[N, A] =
         ContraTracer.fromArrow(TracerA.nat(h)(runTracer))
@@ -183,10 +178,8 @@ object ContraTracer {
     given [M[_]: Monad, A]: Monoid[ContraTracer[M, A]] with {
         override def empty: ContraTracer[M, A] = nullTracer
 
-        /** Nests right. `|+|` runs its left tracer by a direct call when traced and its right one
-          * inside `flatMap`, so tracing a left-nested fold recurses once per tracer in any monad,
-          * while a right-nested one recurses only in a monad whose `flatMap` does. Fold tracers
-          * with this rather than a hand-written left fold of `|+|`.
+        /** Starts the fold from the first tracer. `Monoid`'s default starts from `nullTracer`,
+          * which adds a `|+|` to every trace.
           */
         override def combineAll(as: IterableOnce[ContraTracer[M, A]]): ContraTracer[M, A] =
             combineAllOption(as).getOrElse(empty)
@@ -211,10 +204,6 @@ object ContraTracer {
       */
     def nullTracer[M[_]: Monad, A]: ContraTracer[M, A] = fromArrow(TracerA.squelch)
 
-    /** An emitting tracer that runs `f` on each event. Upstream's name; [[apply]] is the same.
-      *
-      * `f` itself can run when `traceWith` is called (see [[ContraTracer.traceWith]]), so keep it
-      * cheap and put the work in the `M[Unit]` it returns.
-      */
+    /** An emitting tracer that runs `f` on each event. Upstream's name; [[apply]] is the same. */
     def emit[M[_]: Monad, A](f: A => M[Unit]): ContraTracer[M, A] = fromArrow(TracerA.emit(f))
 }
