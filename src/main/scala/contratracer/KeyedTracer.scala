@@ -20,6 +20,8 @@ import cats.{Contravariant, Monad, Monoid, ~>}
   *   events `tracer` would act on: a key it refuses is never traced.
   * @param tracer
   *   receives each enabled event, paired with its key
+  * @param isNullTracer
+  *   set by [[KeyedTracer.nullTracer]] alone, so `|+|` can return the other side unchanged
   * @tparam M
   *   the effect monad events are emitted into
   * @tparam K
@@ -27,10 +29,15 @@ import cats.{Contravariant, Monad, Monoid, ~>}
   * @tparam A
   *   the event type this tracer consumes
   */
-final class KeyedTracer[M[_], K, A](
+final class KeyedTracer[M[_], K, A] private (
     val enabled: K => Boolean,
-    val tracer: ContraTracer[M, (K, A)]
+    val tracer: ContraTracer[M, (K, A)],
+    private val isNullTracer: Boolean
 )(using Monad[M]) {
+
+    /** A keyed tracer over `enabled` and `tracer`. */
+    def this(enabled: K => Boolean, tracer: ContraTracer[M, (K, A)])(using Monad[M]) =
+        this(enabled, tracer, false)
 
     private val skipped: M[Unit] = Monad[M].unit
 
@@ -78,13 +85,14 @@ final class KeyedTracer[M[_], K, A](
       * enables it, and each tracer still receives only the keys its own `enabled` accepts. The
       * other contracts are `ContraTracer.|+|`'s; [[KeyedTracer.nullTracer]] is the identity.
       *
-      * A side whose `tracer` is a `ContraTracer.nullTracer` receives nothing, whatever its
-      * `enabled` says, so the result is the other side itself: its `enabled` is not widened, and a
-      * trace pays for no fan-out.
+      * When either side is [[KeyedTracer.nullTracer]], the result is the other side itself, and a
+      * trace pays for no fan-out. A side built by hand over `ContraTracer.nullTracer`, or derived
+      * from `KeyedTracer.nullTracer` by `contramap` or `mapK`, is combined in full: its `enabled`
+      * still widens the result's, and an event it enables is still built.
       */
     def |+|(that: KeyedTracer[M, K, A]): KeyedTracer[M, K, A] =
-        if that.tracer.isNullTracer then this
-        else if tracer.isNullTracer then that
+        if isNullTracer then that
+        else if that.isNullTracer then this
         else KeyedTracer(k => enabled(k) || that.enabled(k), filtered |+| that.filtered)
 
     /** Changes the effect with a natural transformation, as `ContraTracer.mapK` does. `enabled` is
@@ -110,10 +118,10 @@ object KeyedTracer {
         KeyedTracer(_ => true, tracer.contramap[(K, A)](_._2))
 
     /** A tracer that enables no key and so builds no event. It is `Monoid.empty`, the identity of
-      * `|+|`.
+      * `|+|`, and `t |+| nullTracer` is `t` itself.
       */
     def nullTracer[M[_]: Monad, K, A]: KeyedTracer[M, K, A] =
-        KeyedTracer(_ => false, ContraTracer.nullTracer)
+        new KeyedTracer(_ => false, ContraTracer.nullTracer, true)
 
     /** [[KeyedTracer.contramap]], for code generic over `Contravariant`. */
     given [M[_], K]: Contravariant[[X] =>> KeyedTracer[M, K, X]] with {

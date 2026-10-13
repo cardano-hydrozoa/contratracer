@@ -161,15 +161,23 @@ class KeyedTracerSpec extends AnyFunSuite {
         )
     }
 
-    test("|+| with a nullTracer leg is the other side itself, its enabled unwidened") {
-        val out = ListBuffer.empty[String]
-        val t = sink[WeaverEvent](Logger.at(Level.Warn), out)
+    test("|+| with KeyedTracer.nullTracer is the other side itself, either way round") {
+        val t = sink[WeaverEvent](Logger.at(Level.Warn), ListBuffer.empty)
         val n = KeyedTracer.nullTracer[Id, Level, WeaverEvent]
+        assert(((t |+| n) eq t, (n |+| t) eq t, (n |+| n) eq n) == (true, true, true))
+    }
+
+    test("|+| combines in full a leg built over ContraTracer.nullTracer that enables keys") {
+        val t = sink[WeaverEvent](Logger.at(Level.Warn), ListBuffer.empty)
         val keen = KeyedTracer[Id, Level, WeaverEvent](_ => true, ContraTracer.nullTracer)
-        val _ = assert(List(t |+| n, n |+| t, t |+| keen, keen |+| t).forall(_ eq t))
-        // The keen leg would have enabled Info; dropped, the event is not built.
-        (t |+| keen).traceAt(Level.Info)(boom[WeaverEvent])
-        assert(out.isEmpty)
+        for both <- List(t |+| keen, keen |+| t) do {
+            // keen enables every key, so beside an emitting tracer its events are built.
+            val _ = assert(!(both eq t) && both.enabled(Level.Info))
+            val _ = assertThrows[AssertionError](both.traceAt(Level.Info)(boom[WeaverEvent]))
+        }
+        // Alone, keen says yes to every key and squelches: it builds nothing.
+        keen.traceAt(Level.Info)(boom[WeaverEvent])
+        assert(keen.enabled(Level.Info))
     }
 
     test("contramap and mapK keep enabled") {

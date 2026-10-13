@@ -172,8 +172,8 @@ def weaver(tracer: KeyedTracer[IO, Level, WeaverEvent]): IO[Unit] =
 - **Composition.** `contramap`, `|+|` and `mapK` work as on `ContraTracer`. With `|+|`, a key is
   enabled when either side enables it, and each side still receives only the keys it enables.
   `KeyedTracer.always(tracer)` enables every key, for a recording tracer in tests;
-  `KeyedTracer.nullTracer` enables none and is the identity. A side whose tracer is
-  `ContraTracer.nullTracer` is dropped, so `t |+| KeyedTracer.nullTracer` is `t` itself.
+  `KeyedTracer.nullTracer` enables none and is the identity: `t |+| KeyedTracer.nullTracer` is
+  `t` itself.
 
 `contratracer-slf4j` provides a keyed sink over an SLF4J logger.
 
