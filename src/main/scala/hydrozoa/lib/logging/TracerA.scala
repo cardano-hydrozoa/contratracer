@@ -108,9 +108,8 @@ object TracerA:
 
         def lift[M[_]: Monad, A, B](f: A => B): TracerA[M, A, B] = compute[M, A, B](f)
 
-        // This type checks, but I'm not totally certain its correct.
-        // The manual implementation would look like:
-        //   (Kleisli((a, c) => s.run(a).map((_, c)))
+        // Upstream defines no `first`; Haskell derives `first f = f *** id`, which on each
+        // constructor is exactly this (Kleisli's `first` carries the `C` through unchanged).
         def first[M[_]: Monad, A, B, C](fa: TracerA[M, A, B]): TracerA[M, (A, C), (B, C)] = {
             fa match {
                 case Squelching(s)  => Squelching(s.first)
@@ -205,9 +204,6 @@ object TracerA:
         def compose[A, B, C](f: TracerA[M, B, C], g: TracerA[M, A, B]): TracerA[M, A, C] =
             TracerAOps.compose(f, g)
 
-        // This type checks, but I'm not totally certain its correct.
-        // The manual implementation would look like:
-        //   (Kleisli((a, c) => s.run(a).map((_, c)))
         def first[A, B, C](fa: TracerA[M, A, B]): TracerA[M, (A, C), (B, C)] = TracerAOps.first(fa)
 
         override def split[A, B, C, D](
