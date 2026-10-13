@@ -170,45 +170,4 @@ object ContraTracerSyntax {
         ct: ContraTracer[M, A]
     ): ContraTracer[M, B] =
         ct.traceMaybe(f)
-//
-//        /** A monadic version of `traceMaybe`.
-//         */
-//        def traceMaybeM[B](f: B => M[Option[A]]): ContraTracer[M, B] = {
-//            def classify: TracerA[M, B, Either[Unit, A]] =
-//                TracerA.effect((x: B) => f(x).map(_.map(Right(_)).getOrElse(Left(()))))
-//
-//            ContraTracer(classify >>> (TracerA.squelch ||| this.use))
-//        }
-//
-//        /** Uses 'traceMaybe' to give a tracer which emits only if a predicate is true.
-//         */
-//        def squelchUnless(p: (A => Boolean)): ContraTracer[M, A] =
-//            traceMaybe(a => Some(a).filter(p))
-//
-//        /** A monadic version of `squelchUnless`. */
-//        def squelchUnlessM(p: A => M[Boolean]): ContraTracer[M, A] =
-//            traceMaybeM(a => p(a).map(prop => if prop then Some(a) else None))
-//
-//        def traceTraversable[T[_] : Foldable](using Monad[M]): ContraTracer[M, T[A]] = runTracer match {
-//            case Squelching(_) => nullTracer
-//            case _ => ContraTracer(TracerA.emit((t: T[A]) => Foldable[T].traverse_(t)(this.traceWith)))
-//        }
-//
-//        def traceAll[T[_] : Foldable, B](f: (B => T[A]))(using Monad[M]): ContraTracer[M, B] =
-//            Contravariant[[X] =>> ContraTracer[M, X]].contramap(this.traceTraversable)(f)
-//
-//        /** A contravariant transformation of a tracer using a Kleisli arrow
-//         *
-//         * @param f
-//         * Kleisli arrow which is evaluated only if a downstream tracer emits
-//         */
-//        def contramapM[B](f: B => M[A]): ContraTracer[M, B] = ContraTracer(
-//            TracerA.effect(f) >>> this.use
-//        )
-//
-//        /** Use a natural transformation to change the @m@ type. This is useful, for instance, to use
-//         * concrete IO tracers in monad transformer stacks that have IO as their base.
-//         */
-//        def natTracer[N[_], S](h: M ~> N) = ContraTracer(TracerA.nat(h)(this.use))
-//    }
 }
