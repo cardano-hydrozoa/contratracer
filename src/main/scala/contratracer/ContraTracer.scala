@@ -174,7 +174,7 @@ object ContraTracer {
         new ContraTracer(runTracer)
 
     /** [[ContraTracer.contramap]], for code generic over `Contravariant`. */
-    given [M[_]: Monad]: Contravariant[[X] =>> ContraTracer[M, X]] with {
+    given [M[_]]: Contravariant[[X] =>> ContraTracer[M, X]] with {
         override def contramap[A, B](tracer: ContraTracer[M, A])(f: B => A): ContraTracer[M, B] =
             tracer.contramap(f)
     }
