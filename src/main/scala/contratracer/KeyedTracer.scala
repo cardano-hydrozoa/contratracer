@@ -5,8 +5,11 @@ import cats.{Contravariant, Monad, Monoid, ~>}
 /** A tracer that asks whether it wants an event before the event exists.
   *
   * Each event travels with a key the caller can state without building it; a logging sink makes the
-  * key a level. [[traceAt]] and [[traceWith]] ask `enabled(key)` first and evaluate the event only
-  * on a yes, so a disabled event costs one call to `enabled` and allocates nothing. The key then
+  * key a level. [[traceAt]], [[at]], `Level`'s shorthands, and [[traceWith]] under a
+  * `TraceKey.const` key ask `enabled(key)` first and evaluate the event only on a yes, so a
+  * disabled event is never built and costs one call to `enabled`. Under a `TraceKey.byValue` key,
+  * [[traceWith]] asks the bound first; whenever the bound is enabled it builds the event to learn
+  * the event's own key, so an event whose own key is disabled is built and then dropped. The key
   * reaches the sink with the event, so a level is stated once: at the call site, or in a
   * [[TraceKey]] instance beside the event type. The library gives the key no meaning beyond
   * `enabled`.
