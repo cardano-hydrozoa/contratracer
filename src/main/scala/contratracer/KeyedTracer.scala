@@ -118,7 +118,7 @@ object KeyedTracer {
         override def combineAllOption(
             as: IterableOnce[KeyedTracer[M, K, A]]
         ): Option[KeyedTracer[M, K, A]] =
-            as.iterator.toVector.reduceRightOption(combine)
+            as.iterator.reduceLeftOption(combine)
 
         override def combine(
             x: KeyedTracer[M, K, A],
