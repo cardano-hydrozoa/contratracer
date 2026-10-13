@@ -185,3 +185,16 @@ class ContraTracerSemanticsSuite extends AnyFunSuite:
             assert(failure.isEmpty, failure.getOrElse(""))
         }
     }
+
+    // traceWith alone does not determine a tracer: these two record nothing on every input, yet
+    // contramapM tells them apart, so a law-checking Eq must also compare the constructor tag.
+    test("the tag is observable: equal traceWith, different contramapM") {
+        val silent = ContraTracer.emit[W, Int](_ => monadW.unit)
+        val none = ContraTracer.nullTracer[W, Int]
+        val viaSilent = log(silent.contramapM[Int](a => effected(1, a).as(a)).traceWith(0))
+        val viaNone = log(none.contramapM[Int](a => effected(1, a).as(a)).traceWith(0))
+        assert(
+          log(silent.traceWith(0)).isEmpty && log(none.traceWith(0)).isEmpty &&
+              viaSilent == List(Ev.Eff(1, "0")) && viaNone.isEmpty
+        )
+    }
