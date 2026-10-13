@@ -102,25 +102,27 @@ val both: ContraTracer[IO, FetcherEvent] = fetcherTracer |+| metricsTracer
 val all: ContraTracer[IO, FetcherEvent] = List(fetcherTracer, metricsTracer, auditTracer).combineAll
 ```
 
-### Test with a capture tracer
+### Test with a recording tracer
 
-The library has no capture tracer of its own; a `Ref` makes one in a line. Combine it with the real
-sink to keep the log while capturing:
+`Recording.make`, in the `contratracer-effect` module, returns a tracer that keeps every event in a
+`Ref`, and the effect that reads them back. Combine it with the real sink to keep the log while
+recording:
 
 ```scala
-import cats.effect.{IO, Ref}
+import cats.effect.IO
+import contratracer.effect.Recording
 
 for
-    seen <- Ref[IO].of(Vector.empty[FetcherEvent])
-    capture = ContraTracer[IO, FetcherEvent](e => seen.update(_ :+ e))
-    _ <- Fetcher(capture |+| fetcherTracer).fetch("https://example.org")
-    events <- seen.get
+    recording <- Recording.make[IO, FetcherEvent]
+    (recorder, recorded) = recording
+    _ <- Fetcher(recorder |+| fetcherTracer).fetch("https://example.org")
+    events <- recorded
 yield assert(events.head == FetcherEvent.Started("https://example.org"))
 ```
 
-Use a `Ref` or a concurrent queue, never a plain mutable buffer: a tracer may be called from several
-fibers at once. Assert on each fiber's own order, or on membership; across fibers the order is not
-fixed.
+A tracer may be called from several fibers at once, so a hand-written recorder needs a `Ref` or a
+concurrent queue, never a plain mutable buffer. Assert on each fiber's own order, or on membership;
+across fibers the order is not fixed.
 
 [`ContraTracerDemo.scala`](src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
 tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `mapK` and silencing.
@@ -209,8 +211,8 @@ The Scaladoc on `ContraTracer` gives each combinator's exact contract.
   `squelchUnless` does not silence either: over an emitting tracer, every event is still built and
   tested.
 - **Trace before acting when the act can cancel you.** If an action's consequence can cancel the
-  tracing fiber, a trace after it may never run. Trace first, or trace the outcome in a finaliser
-  (`guaranteeCase`).
+  tracing fiber, a trace after it may never run. Trace first, or trace the outcome in a finaliser.
+  `contratracer-effect` has both as combinators: `traceThenAct` and `actThenTraceOutcome`.
 - **A blocking sink holds compute threads.** A sink that writes synchronously inside `IO.delay`
   blocks a compute worker and delays unrelated fibers. Log through an asynchronous appender, or wrap
   the write in `IO.blocking`, which can cost a thread handoff per trace.
@@ -254,6 +256,21 @@ val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
     }
 ```
 
+### `contratracer-effect`
+
+Combinators that need cats-effect. It adds `cats-effect-kernel`.
+
+- **`Recording.make[F, A]`** returns a tracer that keeps every event in a `Ref`, and the effect that
+  reads them, oldest first. Each fiber's events keep the order their traces ran.
+- **`Recording.awaiting(p)`** adds an effect that waits for the first event satisfying `p` and
+  returns it. The event is recorded before the waiter wakes, so a test can wait for a trace instead
+  of sleeping.
+- **`TraceAroundAct.traceThenAct(tracer)(event)(act)`** traces, then acts, as one uncancelable step:
+  the event is traced if and only if the act runs. The whole act is masked, so keep it short.
+- **`TraceAroundAct.actThenTraceOutcome(tracer)(act)(outcome => event)`** acts, then traces how the
+  act ended in a finaliser that a cancel cannot skip. The trace can trail what observers of the act
+  already saw.
+
 ## Layout
 
 - `ContraTracer.scala`: the user-facing tracer (`traceWith`, `contramap`, `|+|`, `traceMaybe`,
@@ -265,6 +282,7 @@ val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
   `TraceKey`, the key an event's type carries.
 - `Level.scala`: `Level`, its shorthands, and `Severity`, a `TraceKey` over `Level`.
 - `contratracer-slf4j/`: the SLF4J module.
+- `contratracer-effect/`: the cats-effect module.
 
 ## Building
 
