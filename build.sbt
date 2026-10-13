@@ -20,7 +20,10 @@ lazy val root = (project in file("."))
         "org.typelevel" %% "cats-core" % "2.13.0",
         // Test-only: the demo suite drives tracers in IO to show the laziness/composition laws.
         "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
-        "org.scalatest" %% "scalatest" % "3.2.19" % Test
+        "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+        // Test-only: the law suites (cats' Arrow/Contravariant/Monoid suites via discipline).
+        "org.typelevel" %% "cats-laws" % "2.13.0" % Test,
+        "org.typelevel" %% "discipline-scalatest" % "2.3.0" % Test
       ),
       scalacOptions ++= Seq(
         "-feature",
