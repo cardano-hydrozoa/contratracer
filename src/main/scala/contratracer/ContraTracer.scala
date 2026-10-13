@@ -187,7 +187,7 @@ object ContraTracer {
         override def combineAllOption(
             as: IterableOnce[ContraTracer[M, A]]
         ): Option[ContraTracer[M, A]] =
-            as.iterator.toVector.reduceRightOption(combine)
+            as.iterator.reduceLeftOption(combine)
 
         override def combine(x: ContraTracer[M, A], y: ContraTracer[M, A]): ContraTracer[M, A] =
             x |+| y
