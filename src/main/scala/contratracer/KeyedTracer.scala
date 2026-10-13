@@ -40,6 +40,14 @@ final class KeyedTracer[M[_], K, A](
     def traceAt(k: K)(a: => A): M[Unit] =
         if enabled(k) then tracer.traceWith((k, a)) else skipped
 
+    /** [[traceAt]] with the key fixed: `at(k)(a)` is `traceAt(k)(a)`. Hoist it once per key, as
+      * `val info = tracer.at(Level.Info)`, and call `info(event)`.
+      *
+      * The function takes its event by name, so a disabled key still builds nothing, and it asks
+      * `enabled(k)` on every call, so a key enabled or disabled after hoisting is followed.
+      */
+    def at(k: K): (=> A) => M[Unit] = a => traceAt(k)(a)
+
     /** Traces `e` under the key its static type carries, found as a `TraceKey[K, E]`.
       *
       * `E` is the static type of the argument expression. A case class constructor or a case object

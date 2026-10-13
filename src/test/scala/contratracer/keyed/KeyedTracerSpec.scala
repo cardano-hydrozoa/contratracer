@@ -58,6 +58,30 @@ class KeyedTracerSpec extends AnyFunSuite {
         assert((builds.count, out.toList) == (1, List("Info Produced(1)")))
     }
 
+    test("at, hoisted: a disabled key builds nothing; control: an enabled key builds once") {
+        val out = ListBuffer.empty[String]
+        val t = sink[WeaverEvent](Logger.at(Level.Info), out)
+        val debug = t.at(Level.Debug)
+        val info = t.at(Level.Info)
+        debug(boom[WeaverEvent])
+        val _ = assertThrows[AssertionError](info(boom[WeaverEvent]))
+        val builds = Builds()
+        info(builds(Produced(1)))
+        assert((builds.count, out.toList) == (1, List("Info Produced(1)")))
+    }
+
+    test("at, hoisted: asks enabled on every call, so a level changed after hoisting is followed") {
+        val logger = Logger.off
+        val out = ListBuffer.empty[String]
+        val info = sink[WeaverEvent](logger, out).at(Level.Info)
+        info(boom[WeaverEvent])
+        logger.threshold = Some(Level.Info)
+        info(Produced(1))
+        logger.threshold = Some(Level.Warn)
+        info(boom[WeaverEvent])
+        assert(out.toList == List("Info Produced(1)"))
+    }
+
     test("traceWith: a case class and a case object find their own key in their companion") {
         val out = ListBuffer.empty[String]
         val t = sink[WeaverEvent](Logger.at(Level.Info), out)

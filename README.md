@@ -161,6 +161,9 @@ def weaver(tracer: KeyedTracer[IO, Level, WeaverEvent]): IO[Unit] =
   instance for the whole enum. Give the enum one `TraceKey.byValue` at its most severe level, or
   state the level at the call with `traceAt`. Under the first, a case below the enum's most severe
   level is built whenever that level is enabled, and then refused.
+- **`at(key)`** fixes the key: `tracer.at(Level.Info)(event)` is `traceAt(Level.Info)(event)`. Hoist
+  it once, as `val info = tracer.at(Level.Info)`, and call `info(event)`. The hoisted function still
+  takes its event by name and asks `enabled` on every call.
 - **Composition.** `contramap`, `|+|` and `mapK` work as on `ContraTracer`. With `|+|`, a key is
   enabled when either side enables it, and each side still receives only the keys it enables.
   `KeyedTracer.always(tracer)` enables every key, for a recording tracer in tests;
