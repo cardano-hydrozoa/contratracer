@@ -145,7 +145,7 @@ class EvaluationTimingSpec extends AnyFunSuite {
         }
     }
 
-    List(Runner.io, Runner.stateT, Runner.kleisli, Runner.eval).foreach { r =>
+    List(Runner.io, Runner.stateT, Runner.kleisli, Runner.eval, Runner.state).foreach { r =>
         test(s"${r.name}: leaves and left legs at call time, shifted stages on every run") {
             val log = PhaseLog()
             shapes(r, log).foreach { (name, tracer) =>

@@ -1,6 +1,6 @@
 package hydrozoa.lib.logging.edge
 
-import cats.data.{Kleisli, StateT}
+import cats.data.{Kleisli, State, StateT}
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.{Eval, Id, Monad}
@@ -26,12 +26,14 @@ trait Runner[M[_]] {
 object Runner {
     type StateIO[A] = StateT[IO, Int, A]
     type ReaderIO[A] = Kleisli[IO, String, A]
+    type PureState[A] = State[Int, A]
 
     private val idMonad: Monad[Id] = summon[Monad[Id]]
     private val evalMonad: Monad[Eval] = summon[Monad[Eval]]
     private val ioMonad: Monad[IO] = summon[Monad[IO]]
     private val stateMonad: Monad[StateIO] = summon[Monad[StateIO]]
     private val readerMonad: Monad[ReaderIO] = summon[Monad[ReaderIO]]
+    private val pureStateMonad: Monad[PureState] = summon[Monad[PureState]]
 
     val id: Runner[Id] = new Runner[Id] {
         val name = "Id"
@@ -66,5 +68,13 @@ object Runner {
         given monad: Monad[ReaderIO] = readerMonad
         def delay(thunk: => Unit): ReaderIO[Unit] = Kleisli.liftF(IO.delay(thunk))
         def run(m: ReaderIO[Unit]): Unit = m.run("env").unsafeRunSync()
+    }
+
+    /** `State` is `StateT` over `Eval`: the stack hydrozoa's mock Cardano backend traces into. */
+    val state: Runner[PureState] = new Runner[PureState] {
+        val name = "State"
+        given monad: Monad[PureState] = pureStateMonad
+        def delay(thunk: => Unit): PureState[Unit] = State(s => { thunk; (s, ()) })
+        def run(m: PureState[Unit]): Unit = m.runA(0).value
     }
 }
