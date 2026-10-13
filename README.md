@@ -224,8 +224,9 @@ Keyed sinks over SLF4J, with no logging backend. It adds `slf4j-api` and `cats-e
   `Severity(Level.Info)` or `Severity.byValue(Level.Warn)(levelOf)`.
 - **`Slf4jSink.keyed(logger)(render)`** is a `KeyedTracer[F, Level, A]` bound to one logger when
   it is wired. It asks the logger whether the event's level is enabled before the event is built,
-  on every trace, so a level changed at run time is followed. `render` runs only for an enabled
-  event, when the traced effect runs. It calls SLF4J directly and leaves the MDC alone.
+  on every trace, so a level changed at run time is followed. `render` runs only for an event whose
+  level was enabled at the call, when the traced effect runs. It calls SLF4J directly and leaves
+  the MDC alone.
 - **`Slf4jSink.squelchedIfDisabled(logger, levels)(tracer)`** returns `nullTracer` when the logger
   has none of `levels` enabled at wiring. It never follows a later level change.
 

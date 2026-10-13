@@ -14,8 +14,10 @@ object Slf4jSink {
       * built, on every trace, so a level changed at run time is followed.
       *
       * The level comes with the event: stated at the call with `traceAt`, or found as a
-      * [[Severity]] by `traceWith`. `render` runs only for an enabled event, inside the `F[Unit]`
-      * the trace returns, and its message is logged at the event's level.
+      * [[Severity]] by `traceWith`. `render` runs only for an event whose level was enabled at the
+      * call, inside the `F[Unit]` the trace returns, and its message is logged at the event's
+      * level. A level lowered between the call and the run still renders, and the logger drops the
+      * message.
       */
     def keyed[F[_], A](logger: Logger)(render: A => String)(using
         F: Sync[F]
