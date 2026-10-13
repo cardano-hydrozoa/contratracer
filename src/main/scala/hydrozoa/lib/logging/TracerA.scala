@@ -8,8 +8,8 @@ import scala.annotation.unused
 
 // Ported to Scala 3 / Cats from Alexander Vieth's Haskell `contra-tracer`, chiefly
 // `src/Control/Tracer/Arrow.hs`: https://github.com/avieth/contra-tracer
-// Modified from the original — see NOTICE. The `//--`-prefixed lines below quote the
-// corresponding upstream Haskell declarations the Scala translates.
+// Modified from the original — see NOTICE. The commented-out Haskell below quotes the upstream
+// declarations the Scala translates.
 
 //-- | Formal representation of a tracer arrow as a Kleisli arrow over some
 //    -- monad, but tagged so that we know whether it has any effects which will emit
@@ -23,6 +23,15 @@ import scala.annotation.unused
 //    -- benign and will be discarded by 'runTracerA'.
 //Squelching :: Kleisli m a b                  -> TracerA m a b
 
+/** A tracer arrow from `A` to `B` in `M`: a Kleisli arrow tagged with whether it emits a trace.
+  *
+  * Emitting effects produce the trace. Non-emitting effects run only when an emitting effect
+  * follows them, and are dropped otherwise, so they must be benign: they compute what a later
+  * emitting effect needs. A composite emits if any of its parts emits.
+  *
+  * [[ContraTracer]] wraps a `TracerA[M, A, Unit]`, and [[compile]] turns one into the function that
+  * `traceWith` applies.
+  */
 sealed trait TracerA[M[_], A, B]
 
 private def const[A, B](a: A)(@unused b: => B): A = a
@@ -31,11 +40,14 @@ private val discardResult: Any => Unit = _ => ()
 
 extension [M[_], A](t: TracerA[M, A, Unit])
 
-    //    -- | The resulting Kleisli arrow includes all of the effects required to do
-    //    -- the emitting part.
     // runTracerA :: Monad m => TracerA m a () -> Kleisli m a ()
     // runTracerA (Emitting emits _noEmits) = emits >>> arr (const ())
     // runTracerA (Squelching     _       ) =           arr (const ())
+
+    /** The emitting part of this tracer as a Kleisli arrow, with its result discarded: every effect
+      * needed to emit, and none after the last emitting one. A squelching tracer gives a constant
+      * `unit`. [[compile]] is the same as a plain function.
+      */
     def runTracerA(using monadM: Monad[M]): Kleisli[M, A, Unit] = {
         def arrConst = Kleisli(x => monadM.pure(const(())(x)))
         t match {
@@ -63,30 +75,37 @@ extension [M[_], A](t: TracerA[M, A, Unit])
     }
 
 object TracerA:
+    /** An emitting part followed by a non-emitting part.
+      *
+      * @param emitter
+      *   everything up to and including the last emitting effect; [[compile]] runs it
+      * @param nonEmitter
+      *   the stages after the last emitting effect. When an emitting stage is composed after this
+      *   arrow, they join its emitter and run; otherwise they are dropped.
+      */
     case class Emitting[M[_], A, X, B](emitter: Kleisli[M, A, X], nonEmitter: Kleisli[M, X, B])
         extends TracerA[M, A, B]
+
+    /** An arrow with no emitting effect. Its stages run only when an emitting stage is composed
+      * after it; otherwise they are dropped, and a `ContraTracer` over it traces nothing.
+      */
     case class Squelching[M[_], A, B](squelching: Kleisli[M, A, B]) extends TracerA[M, A, B]
 
-    //
-    //    -- | Ignore the input and do not emit. The name is intended to lead to clear
-    //    -- and suggestive arrow expressions.
-    //    squelch :: Applicative m => TracerA m a ()
-    // squelch = compute (const ())
-    //
+    /** Ignores the input and emits nothing: the arrow behind [[ContraTracer.nullTracer]]. */
     def squelch[M[_]: Applicative, A]: TracerA[M, A, Unit] = compute(_ => ())
 
-    //    -- | Do an emitting effect. Contrast with 'effect' which does not make the
-    //    -- tracer an emitting tracer.
+    /** An emitting effect: the arrow emits. Contrast [[effect]]. */
     def emit[M[_], A](f: A => M[Unit])(using appM: Applicative[M]): TracerA[M, A, Unit] = Emitting(
       emitter = Kleisli(f),
       nonEmitter = Kleisli(const(appM.unit))
     )
 
-    //    -- | Do a non-emitting effect. This effect will only be run if some part of
-    //    -- the tracer downstream emits (see 'emit').
+    /** A non-emitting effect. It runs only when an emitting stage is composed after it, and is
+      * dropped otherwise. Contrast [[emit]].
+      */
     def effect[M[_], A, B](f: A => M[B]): TracerA[M, A, B] = Squelching(Kleisli(f))
 
-    //    -- | Pure computation in a tracer: no side effects or emits.
+    /** A pure function as a non-emitting stage. */
     def compute[M[_], A, B](f: A => B)(using appM: Applicative[M]): TracerA[M, A, B] =
         effect(x => appM.pure(f(x)))
 
@@ -99,14 +118,13 @@ object TracerA:
                 case (Squelching(l), Squelching(r)) => Squelching(r.andThen(l))
 
                 case (Squelching(l), Emitting(re, rp)) =>
-                    //  Crucial: the squelching parts stay together. Could also have written
-                    //             = Emitting   (rp . re)      l
-                    //  but that would miss opportunities to skip doing work.
+                    // Keep the non-emitting parts together. `Emitting(re.andThen(rp), l)` is also
+                    // correct, but would run `rp` on every trace instead of leaving it droppable.
                     Emitting(re, rp.andThen(l))
 
                 case (Emitting(le, lp), Squelching(r)) =>
-                    //   Contrast with the above clause: here the emitting part comes _after_ the
-                    //    squelching part, so the squelching part becomes part of the emitting part.
+                    // The non-emitting part runs first here, so it must run whenever the emitter
+                    // does: it joins the emitter.
                     Emitting(r.andThen(le), lp)
                 case (Emitting(le, lp), Emitting(re, rp)) =>
                     Emitting(re.andThen(rp).andThen(le), lp)
@@ -262,6 +280,9 @@ object TracerA:
         ): TracerA[M, A, (B, C)] = TracerAOps.merge(f, g)
     }
 
+    /** Changes the effect of every stage with `h`, keeping the tag. `h` must be a monad morphism,
+      * preserving `pure` and `flatMap`, or the result depends on how the arrow was composed.
+      */
     def nat[M[_], N[_], A, B](h: M ~> N)(t: TracerA[M, A, B]): TracerA[N, A, B] = t match {
         case Squelching(k)  => Squelching(k.mapK(h))
         case Emitting(k, l) => Emitting(k.mapK(h), l.mapK(h))
