@@ -27,6 +27,8 @@ sealed trait TracerA[M[_], A, B]
 
 private def const[A, B](a: A)(@unused b: => B): A = a
 
+private val discardResult: Any => Unit = _ => ()
+
 extension [M[_], A](t: TracerA[M, A, Unit])
 
     //    -- | The resulting Kleisli arrow includes all of the effects required to do
@@ -48,9 +50,13 @@ extension [M[_], A](t: TracerA[M, A, Unit])
       * CAF, so GHC floats the compiled arrow out of the hot path; on the JVM the equivalent must be
       * done by hand ([[ContraTracer]] memoises the result). A squelching tracer compiles to a
       * constant `unit`, making a squelched `traceWith` allocation-free.
+      *
+      * The emitting case discards the result with `map`, never `void`: a monad may implement `void`
+      * without running its argument (cats' `Eval` returns `Eval.Unit`), which would drop every
+      * emission. For `IO`, `void` is this same `map`.
       */
     def compile(using monadM: Monad[M]): A => M[Unit] = t match {
-        case TracerA.Emitting(emits, _) => a => monadM.void(emits.run(a))
+        case TracerA.Emitting(emits, _) => a => monadM.map(emits.run(a))(discardResult)
         case TracerA.Squelching(_) =>
             val unit = monadM.unit
             _ => unit
