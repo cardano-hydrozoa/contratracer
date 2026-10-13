@@ -9,18 +9,12 @@ import org.scalatest.funsuite.AnyFunSuite
 /** When each part of a composed tracer is evaluated, relative to `traceWith` returning and to the
   * returned `M[Unit]` being run, in each monad.
   *
-  * Two things decide it. `traceWith` applies the compiled tracer to the event as soon as it is
-  * called, so the event and every stage the library builds as a bare `Kleisli` (an `emit` leaf, the
-  * left leg of `|+|`) run at call time. Stages joined with cats' `Kleisli.andThen` (every
-  * `contramap`, `contramapM`, `squelchUnless`, `traceMaybe` stage) go through `Kleisli.shift`,
-  * which puts them behind a `flatMap(pure(a))`: in a suspending monad they run when the result is
-  * run, and again on every further run. In `Id` there is no difference: everything runs at call
-  * time, once.
+  * `traceWith` evaluates the event and nothing else. The compiled tracer runs its emitting part
+  * behind a `flatMap(unit)`, so in a suspending monad every stage and every sink, in every leg of
+  * `|+|`, runs when the result is run, and again on every further run. In `Id` there is no
+  * difference: everything runs at call time, once.
   */
 class EvaluationTimingSpec extends AnyFunSuite {
-
-    /** What a shape logs at call time and on each run, in a suspending monad. */
-    private case class Expected(atCall: List[String], perRun: List[String])
 
     private def shapes[M[_]](r: Runner[M], log: PhaseLog): List[(String, ContraTracer[M, Int])] = {
         import r.given
@@ -76,46 +70,28 @@ class EvaluationTimingSpec extends AnyFunSuite {
         )
     }
 
-    private val expected: Map[String, Expected] = Map(
-      "emit" -> Expected(List("event", "sink-fn(7)"), List("sink-effect(7)")),
-      "contramap" -> Expected(List("event"), List("contramap", "sink-fn(8)", "sink-effect(8)")),
-      "contramap twice" ->
-          Expected(List("event"), List("outer", "inner", "sink-fn(9)", "sink-effect(9)")),
-      "contramapM" -> Expected(
-        List("event"),
-        List("contramapM-fn", "contramapM-effect", "sink-fn(7)", "sink-effect(7)")
-      ),
-      "squelchUnless (passes)" -> Expected(
-        List("event"),
-        List("p", "sink-fn(7)", "sink-effect(7)")
-      ),
-      "squelchUnless (filtered)" -> Expected(List("event"), List("p")),
-      "traceMaybe (Some)" ->
-          Expected(List("event"), List("classify", "sink-fn(7)", "sink-effect(7)")),
-      "squelchUnlessM (passes)" ->
-          Expected(List("event"), List("pM-fn", "pM-effect", "sink-fn(7)", "sink-effect(7)")),
-      "traceMaybeM (None)" -> Expected(List("event"), List("classifyM-fn", "classifyM-effect")),
-      "L |+| R" ->
-          Expected(List("event", "L-fn(7)"), List("L-effect(7)", "R-fn(7)", "R-effect(7)")),
-      "R |+| L" ->
-          Expected(List("event", "R-fn(7)"), List("R-effect(7)", "L-fn(7)", "L-effect(7)")),
-      "L.contramap |+| R" ->
-          Expected(List("event"), List("cmL", "L-fn(7)", "L-effect(7)", "R-fn(7)", "R-effect(7)")),
-      "(L |+| R) |+| S" -> Expected(
-        List("event", "L-fn(7)"),
-        List("L-effect(7)", "R-fn(7)", "R-effect(7)", "S-fn(7)", "S-effect(7)")
-      ),
-      "L |+| (R |+| S)" -> Expected(
-        List("event", "L-fn(7)"),
-        List("L-effect(7)", "R-fn(7)", "R-effect(7)", "S-fn(7)", "S-effect(7)")
-      ),
-      "emit |+| squelched contramap" ->
-          Expected(List("event", "sink-fn(7)"), List("sink-effect(7)")),
-      "squelched contramap |+| emit" -> Expected(
-        List("event"),
-        List("sink-fn(7)", "sink-effect(7)")
-      ),
-      "mapK(id)" -> Expected(List("event", "sink-fn(7)"), List("sink-effect(7)"))
+    /** What a shape logs on each run in a suspending monad, after the event at call time. */
+    private val perRun: Map[String, List[String]] = Map(
+      "emit" -> List("sink-fn(7)", "sink-effect(7)"),
+      "contramap" -> List("contramap", "sink-fn(8)", "sink-effect(8)"),
+      "contramap twice" -> List("outer", "inner", "sink-fn(9)", "sink-effect(9)"),
+      "contramapM" ->
+          List("contramapM-fn", "contramapM-effect", "sink-fn(7)", "sink-effect(7)"),
+      "squelchUnless (passes)" -> List("p", "sink-fn(7)", "sink-effect(7)"),
+      "squelchUnless (filtered)" -> List("p"),
+      "traceMaybe (Some)" -> List("classify", "sink-fn(7)", "sink-effect(7)"),
+      "squelchUnlessM (passes)" -> List("pM-fn", "pM-effect", "sink-fn(7)", "sink-effect(7)"),
+      "traceMaybeM (None)" -> List("classifyM-fn", "classifyM-effect"),
+      "L |+| R" -> List("L-fn(7)", "L-effect(7)", "R-fn(7)", "R-effect(7)"),
+      "R |+| L" -> List("R-fn(7)", "R-effect(7)", "L-fn(7)", "L-effect(7)"),
+      "L.contramap |+| R" -> List("cmL", "L-fn(7)", "L-effect(7)", "R-fn(7)", "R-effect(7)"),
+      "(L |+| R) |+| S" ->
+          List("L-fn(7)", "L-effect(7)", "R-fn(7)", "R-effect(7)", "S-fn(7)", "S-effect(7)"),
+      "L |+| (R |+| S)" ->
+          List("L-fn(7)", "L-effect(7)", "R-fn(7)", "R-effect(7)", "S-fn(7)", "S-effect(7)"),
+      "emit |+| squelched contramap" -> List("sink-fn(7)", "sink-effect(7)"),
+      "squelched contramap |+| emit" -> List("sink-fn(7)", "sink-effect(7)"),
+      "mapK(id)" -> List("sink-fn(7)", "sink-effect(7)")
     )
 
     /** Trace once, then run the result twice, logging the boundaries between the phases. */
@@ -129,31 +105,30 @@ class EvaluationTimingSpec extends AnyFunSuite {
     }
 
     test("shapes cover the expectations") {
-        assert(shapes(Runner.id, PhaseLog()).map(_._1).toSet == expected.keySet)
+        assert(shapes(Runner.id, PhaseLog()).map(_._1).toSet == perRun.keySet)
     }
 
     test("Id: everything runs at call time, once") {
         val log = PhaseLog()
         shapes(Runner.id, log).foreach { (name, tracer) =>
-            val e = expected(name)
             withClue(name) {
                 assert(
                   phases(Runner.id, tracer, log) ==
-                      e.atCall ++ e.perRun ++ List("returned", "ran once")
+                      "event" :: perRun(name) ++ List("returned", "ran once")
                 )
             }
         }
     }
 
     List(Runner.io, Runner.stateT, Runner.kleisli, Runner.eval, Runner.state).foreach { r =>
-        test(s"${r.name}: leaves and left legs at call time, shifted stages on every run") {
+        test(s"${r.name}: only the event at call time, every stage and sink on every run") {
             val log = PhaseLog()
             shapes(r, log).foreach { (name, tracer) =>
-                val e = expected(name)
+                val run = perRun(name)
                 withClue(name) {
                     assert(
                       phases(r, tracer, log) ==
-                          e.atCall ++ ("returned" :: e.perRun) ++ ("ran once" :: e.perRun)
+                          List("event", "returned") ++ run ++ ("ran once" :: run)
                     )
                 }
             }

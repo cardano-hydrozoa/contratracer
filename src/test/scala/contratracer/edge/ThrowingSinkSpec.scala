@@ -9,9 +9,10 @@ import scala.collection.mutable.ListBuffer
 import scala.util.{Failure, Success, Try}
 
 /** What a failure inside a tracer does to its caller. The library catches nothing: a failure
-  * reaches the caller either thrown out of `traceWith` or raised in the returned `IO`, and which of
-  * the two depends on whether the failing stage runs at call time or at run time (see
-  * [[EvaluationTimingSpec]]). A failing leg of `|+|` stops the legs after it.
+  * reaches the caller either thrown out of `traceWith` or raised in the returned `IO`. In `IO` only
+  * the event is evaluated at the call, so only a throwing event is thrown; every stage and sink
+  * runs in the `IO`, so their failures are raised (see [[EvaluationTimingSpec]]). In `Id` every
+  * failure is thrown. A failing leg of `|+|` stops the legs after it.
   */
 class ThrowingSinkSpec extends AnyFunSuite {
 
@@ -49,16 +50,13 @@ class ThrowingSinkSpec extends AnyFunSuite {
         assert(surfaced(t.traceWith(1)) == RaisedAtRun("sink"))
     }
 
-    test("IO: a sink function that throws is thrown out of traceWith when it is a bare leaf") {
-        assert(surfaced(throwingFn("sink").traceWith(1)) == ThrownAtCall("sink"))
-    }
-
-    test("IO: the same throwing sink function is raised instead under contramap or a filter") {
+    test("IO: a sink function that throws is raised, bare or under contramap or a filter") {
         val outcomes = List(
+          surfaced(throwingFn("sink").traceWith(1)),
           surfaced(throwingFn("sink").contramap[Int](identity).traceWith(1)),
           surfaced(throwingFn("sink").squelchUnless(_ => true).traceWith(1))
         )
-        assert(outcomes == List.fill(2)(RaisedAtRun("sink")))
+        assert(outcomes == List.fill(3)(RaisedAtRun("sink")))
     }
 
     test("IO: a throwing contramap function, predicate or classifier is raised") {
@@ -86,7 +84,7 @@ class ThrowingSinkSpec extends AnyFunSuite {
           surfaced((throwingFn("left") |+| right).traceWith(1)),
           surfaced((raisingLeft |+| right).traceWith(1))
         )
-        assert((outcomes, ran.toList) == (List(ThrownAtCall("left"), RaisedAtRun("left")), Nil))
+        assert((outcomes, ran.toList) == (List.fill(2)(RaisedAtRun("left")), Nil))
     }
 
     test("IO |+|: a right leg that fails has already let the left leg run") {

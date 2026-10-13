@@ -3,15 +3,13 @@ package contratracer.edge
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Deferred, IO, Ref}
 import contratracer.ContraTracer
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.scalatest.funsuite.AnyFunSuite
 
 /** A slow sink, seen from the one fiber or thread that traces. The library adds no asynchrony:
-  * tracing is a step of the caller, so a sink that takes long makes the caller take long. A sink's
-  * effect holds the fiber that runs the traced `IO`; a sink's function, when it runs at call time
-  * (a bare `emit` leaf, the left leg of `|+|`), holds the thread that calls `traceWith`, before any
-  * `IO` runs.
+  * tracing is a step of the caller, so a sink that takes long makes the caller take long. In `IO` a
+  * sink's function and its effect both run when the traced `IO` runs, so they hold the fiber that
+  * runs it and never the thread that calls `traceWith`.
   */
 class SlowSinkSpec extends AnyFunSuite {
 
@@ -51,19 +49,14 @@ class SlowSinkSpec extends AnyFunSuite {
         assert(observed == (false, true))
     }
 
-    test("IO: a bare leaf whose function blocks holds the caller of traceWith") {
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val returned = AtomicBoolean(false)
-        val blocking = ContraTracer.emit[IO, Int] { _ =>
-            entered.countDown(); release.await(); IO.unit
+    test("IO: a bare leaf's function runs when the IO runs, not at the traceWith call") {
+        val calls = AtomicInteger(0)
+        val leaf = ContraTracer.emit[IO, Int] { _ =>
+            calls.incrementAndGet(); IO.unit
         }
-        val caller = Thread(() => { blocking.traceWith(1): Unit; returned.set(true) })
-        caller.start()
-        entered.await()
-        val beforeRelease = returned.get
-        release.countDown()
-        caller.join()
-        assert((beforeRelease, returned.get) == (false, true))
+        val traced = leaf.traceWith(1)
+        val atCall = calls.get
+        traced.unsafeRunSync()
+        assert((atCall, calls.get) == (0, 1))
     }
 }

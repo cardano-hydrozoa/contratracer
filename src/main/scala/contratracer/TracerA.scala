@@ -66,9 +66,14 @@ extension [M[_], A](t: TracerA[M, A, Unit])
       * The emitting case discards the result with `map`, never `void`: a monad may implement `void`
       * without running its argument (cats' `Eval` returns `Eval.Unit`), which would drop every
       * emission. For `IO`, `void` is this same `map`.
+      *
+      * The emitting part runs behind `flatMap(unit)`, so in a monad that suspends, applying the
+      * compiled function runs no stage and no sink: everything runs when the returned `M[Unit]`
+      * runs. In `Id` that is at once.
       */
     def compile(using monadM: Monad[M]): A => M[Unit] = t match {
-        case TracerA.Emitting(emits, _) => a => monadM.map(emits.run(a))(discardResult)
+        case TracerA.Emitting(emits, _) =>
+            a => monadM.flatMap(monadM.unit)(_ => monadM.map(emits.run(a))(discardResult))
         case TracerA.Squelching(_) =>
             val unit = monadM.unit
             _ => unit
@@ -157,11 +162,18 @@ object TracerA:
                 monadM.flatMap(f.run(ac._1))(b => monadM.map(g.run(ac._2))(d => (b, d)))
             )
 
-        /** `f &&& g` at the Kleisli level: run both legs on the same input, no dup/swap stages. */
+        /** `f &&& g` at the Kleisli level: run both legs on the same input, no dup/swap stages.
+          * Both legs run behind `flatMap(unit)`, so tracing a fan-out nested to any depth, left or
+          * right, recurses only as deep as the monad's own `flatMap` does.
+          */
         def fanK[M[_], A, B, C](f: Kleisli[M, A, B], g: Kleisli[M, A, C])(using
             monadM: Monad[M]
         ): Kleisli[M, A, (B, C)] =
-            Kleisli((a: A) => monadM.flatMap(f.run(a))(b => monadM.map(g.run(a))(c => (b, c))))
+            Kleisli((a: A) =>
+                monadM.flatMap(monadM.unit)(_ =>
+                    monadM.flatMap(f.run(a))(b => monadM.map(g.run(a))(c => (b, c)))
+                )
+            )
 
         /** `f ||| g` at the Kleisli level: dispatch on the Either, no merging `arr` stage. */
         def eitherK[M[_], A, B, C](

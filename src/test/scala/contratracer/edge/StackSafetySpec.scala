@@ -7,11 +7,13 @@ import org.scalatest.funsuite.AnyFunSuite
   * thread stack on x86-64 Linux). Each case runs on its own thread with that stack, and an IO runs
   * on that thread through `syncStep`, so an overflow never reaches a runtime worker.
   *
-  * Building is iterative for every shape; any overflow happens when `traceWith` is called. The
-  * first-overflow depth moves with JIT warm-up (`StackDepthProbe` measures it): interpreted frames
-  * are several times larger than compiled ones, and a cold `Id` chain of `squelchUnless` can
-  * overflow near depth 10^3. So these cases assert only depths far from every boundary: 10^2 and
-  * 10^5.
+  * Building is iterative for every shape. Every stage and every leg of `|+|` runs behind a
+  * `flatMap`, so tracing recurses only as deep as the monad's `flatMap` does: in `Eval` and `IO`
+  * every shape traces at any depth, and in `Id`, whose `flatMap` is a direct call, every shape
+  * overflows when `traceWith` is called. The first-overflow depth in `Id` moves with JIT warm-up
+  * (`StackDepthProbe` measures it): interpreted frames are several times larger than compiled ones,
+  * and a cold chain of `squelchUnless` can overflow near depth 10^3. So these cases assert only
+  * depths far from every boundary: 10^2 and 10^5.
   */
 class StackSafetySpec extends AnyFunSuite {
 
@@ -37,31 +39,9 @@ class StackSafetySpec extends AnyFunSuite {
         }
     }
 
-    private val shiftedShapes = List(
-      Shape.ContramapChain,
-      Shape.SquelchUnlessChain,
-      Shape.CombineRight,
-      Shape.CombineAll,
-      Shape.ArrowLeft,
-      Shape.ArrowRight
-    )
-
-    for target <- List(eval, io); shape <- shiftedShapes do {
+    for target <- List(eval, io); shape <- Shape.values do {
         test(s"${target.name}: ${shape.label} of depth $deep traces every sink") {
             assert(completes(target, shape, deep))
-        }
-    }
-
-    /** `|+|` runs its left leg by a direct call, so a left-nested fold recurses once per level at
-      * call time, whatever the monad. A fix moves the left leg behind a `flatMap`, which costs
-      * every trace through `|+|`; that is a design decision.
-      */
-    for target <- List(eval, io); shape <- List(Shape.CombineLeft) do {
-        test(s"${target.name}: ${shape.label} of depth $deep overflows when traced") {
-            assert(overflowsAtCall(target, shape, deep))
-        }
-        test(s"${target.name}: ${shape.label} of depth $deep should trace every sink") {
-            pendingUntilFixed(assert(completes(target, shape, deep)): Unit)
         }
     }
 

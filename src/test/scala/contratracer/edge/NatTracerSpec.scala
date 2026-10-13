@@ -9,9 +9,10 @@ import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer
 
 /** `mapK` maps the tracer's whole emitting arrow through the transformation, so it keeps the
-  * Squelching tag and applies the transformation once per trace, at call time, to the arrow's
-  * result. It distributes over the other combinators only when the transformation is a monad
-  * morphism, and a transformation out of `Id` sees effects that already happened.
+  * Squelching tag and applies the transformation to the arrow's result once each time the traced
+  * effect runs. It distributes over the other combinators only when the transformation is a monad
+  * morphism. A transformation out of `Id` receives a value whose effects have already happened,
+  * because the `Id` arrow runs as the transformation's argument.
   */
 class NatTracerSpec extends AnyFunSuite {
 
@@ -31,7 +32,7 @@ class NatTracerSpec extends AnyFunSuite {
         assert((isSquelching, h.applied) == (true, 0))
     }
 
-    test("the transformation is applied once per trace, at call time, whatever is inside") {
+    test("the transformation is applied once per run of the traced IO, whatever is inside") {
         val h = Counting()
         val leaf = ContraTracer.emit[IO, Int](_ => IO.unit)
         val mapped =
@@ -40,7 +41,7 @@ class NatTracerSpec extends AnyFunSuite {
         val atCall = h.applied
         traced.unsafeRunSync()
         traced.unsafeRunSync()
-        assert((atCall, h.applied) == (1, 1))
+        assert((atCall, h.applied) == (0, 2))
     }
 
     test("a transformation that is not a monad morphism does not distribute over |+|") {
@@ -56,26 +57,18 @@ class NatTracerSpec extends AnyFunSuite {
 
     private val idToIO = new (Id ~> IO) { def apply[A](a: Id[A]): IO[A] = IO.delay(a) }
 
-    test("Id ~> IO: the Id sink runs at call time, and running the IO does not re-emit") {
+    test("Id ~> IO: the Id sink runs on every run of the IO, with or without a stage in front") {
         val seen = ListBuffer.empty[Int]
-        val traced = ContraTracer.emit[Id, Int](i => seen += i: Unit).mapK(idToIO).traceWith(1)
-        val atCall = seen.toList
-        traced.unsafeRunSync()
-        traced.unsafeRunSync()
-        assert((atCall, seen.toList) == (List(1), List(1)))
-    }
-
-    test("Id ~> IO then contramap in IO: the same Id sink runs on every run instead") {
-        val seen = ListBuffer.empty[Int]
-        val traced = ContraTracer
-            .emit[Id, Int](i => seen += i: Unit)
-            .mapK(idToIO)
-            .contramap[Int](identity)
-            .traceWith(1)
-        val atCall = seen.toList
-        traced.unsafeRunSync()
-        traced.unsafeRunSync()
-        assert((atCall, seen.toList) == (Nil, List(1, 1)))
+        val mapped = ContraTracer.emit[Id, Int](i => seen += i: Unit).mapK(idToIO)
+        val outcomes = List(mapped, mapped.contramap[Int](identity)).map { tracer =>
+            seen.clear()
+            val traced = tracer.traceWith(1)
+            val atCall = seen.toList
+            traced.unsafeRunSync()
+            traced.unsafeRunSync()
+            (atCall, seen.toList)
+        }
+        assert(outcomes == List.fill(2)((Nil, List(1, 1))))
     }
 
     test("IO ~> Id through unsafeRunSync: the IO sink runs at call time, on the caller") {

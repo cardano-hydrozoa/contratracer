@@ -11,10 +11,9 @@ import scala.util.Try
 /** `traceTraversable` and `traceAll` over large and infinite structures.
   *
   * A squelching tracer never touches the structure. An emitting one traverses with cats'
-  * `traverseVoid`, whose strategy is chosen by the structure's instance and the monad: for `List`
-  * and `Vector` in a stack-safe monad such as IO it applies the sink function to every element at
-  * call time, building the whole chain before anything runs; for `LazyList` it applies it to the
-  * head only and walks the rest as the result runs. Either way the emissions come in order.
+  * `traverseVoid` when the returned `M[Unit]` runs. In a suspending monad such as IO the call
+  * applies the sink function to no element, and the run applies it to each element just before that
+  * element's effect, in order, for `List`, `Vector` and `LazyList` alike.
   */
 class TraverseSpec extends AnyFunSuite {
 
@@ -41,30 +40,21 @@ class TraverseSpec extends AnyFunSuite {
         assert((count, ordered) == (large, true))
     }
 
-    List("List", "Vector").foreach { name =>
-        test(s"IO: a $name of $large has its sink function applied to every element at call time") {
-            var (applied, ran) = (0, 0)
+    List("List", "Vector", "LazyList").foreach { name =>
+        test(s"IO: a $name of $large has its sink function applied per element as the IO runs") {
+            var (applied, ran, interleaved) = (0, 0, true)
             val t = ContraTracer.emit[IO, Int] { _ =>
-                applied += 1; IO.delay(ran += 1)
+                interleaved &&= applied == ran; applied += 1; IO.delay(ran += 1)
             }
-            val traced =
-                if name == "List" then t.traceTraversable[List].traceWith(List.range(0, large))
-                else t.traceTraversable[Vector].traceWith(Vector.range(0, large))
+            val traced = name match {
+                case "List"   => t.traceTraversable[List].traceWith(List.range(0, large))
+                case "Vector" => t.traceTraversable[Vector].traceWith(Vector.range(0, large))
+                case _        => t.traceTraversable[LazyList].traceWith(LazyList.range(0, large))
+            }
             val atCall = (applied, ran)
             traced.unsafeRunSync()
-            assert((atCall, (applied, ran)) == ((large, 0), (large, large)))
+            assert((atCall, (applied, ran), interleaved) == ((0, 0), (large, large), true))
         }
-    }
-
-    test(s"IO: a LazyList of $large has its sink function applied to the head only at call time") {
-        var (applied, ran) = (0, 0)
-        val t = ContraTracer.emit[IO, Int] { _ =>
-            applied += 1; IO.delay(ran += 1)
-        }
-        val traced = t.traceTraversable[LazyList].traceWith(LazyList.range(0, large))
-        val atCall = (applied, ran)
-        traced.unsafeRunSync()
-        assert((atCall, (applied, ran)) == ((1, 0), (large, large)))
     }
 
     test("Id: an infinite LazyList is emitted element by element until the sink stops it") {
