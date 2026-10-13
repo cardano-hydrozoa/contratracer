@@ -8,14 +8,15 @@ import org.scalatest.funsuite.AnyFunSuite
   * on that thread through `syncStep`, so an overflow never reaches a runtime worker.
   *
   * Building is iterative for every shape; any overflow happens when `traceWith` is called. The
-  * exact first-overflow depth moves with JIT warm-up (`StackDepthProbe` measures it), so these
-  * cases assert only depths far from the boundary: 10^3, below every boundary measured, and 10^5,
-  * above every one.
+  * first-overflow depth moves with JIT warm-up (`StackDepthProbe` measures it): interpreted frames
+  * are several times larger than compiled ones, and a cold `Id` chain of `squelchUnless` can
+  * overflow near depth 10^3. So these cases assert only depths far from every boundary: 10^2 and
+  * 10^5.
   */
 class StackSafetySpec extends AnyFunSuite {
 
     private val stack = 1024L * 1024
-    private val shallow = 1000
+    private val shallow = 100
     private val deep = 100000
 
     private def completes[M[_]](target: Target[M], shape: Shape, depth: Int): Boolean =
