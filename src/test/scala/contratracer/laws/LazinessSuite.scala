@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.Foldable
 import cats.Eval
 import cats.syntax.all.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Recorded.*
+import contratracer.*
+import contratracer.laws.Recorded.*
 import java.util.concurrent.atomic.AtomicInteger
 import org.scalatest.funsuite.AnyFunSuite
 

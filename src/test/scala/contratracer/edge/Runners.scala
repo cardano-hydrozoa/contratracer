@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.data.{Kleisli, State, StateT}
 import cats.effect.IO

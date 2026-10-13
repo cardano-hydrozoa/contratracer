@@ -1,11 +1,11 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
 import cats.{Id, ~>}
-import hydrozoa.lib.logging.ContraTracer.nullTracer
-import hydrozoa.lib.logging.{ContraTracer, TracerA}
+import contratracer.ContraTracer.nullTracer
+import contratracer.{ContraTracer, TracerA}
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer
 

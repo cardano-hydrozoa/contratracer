@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.Id
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import hydrozoa.lib.logging.ContraTracer
-import hydrozoa.lib.logging.ContraTracer.nullTracer
+import contratracer.ContraTracer
+import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite
 import scala.util.Try
 

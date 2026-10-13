@@ -1,6 +1,6 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
-import hydrozoa.lib.logging.edge.DeepShapes.*
+import contratracer.edge.DeepShapes.*
 import org.scalatest.funsuite.AnyFunSuite
 
 /** How deep a composed tracer can be before tracing it overflows a 1 MiB stack (the JVM default
@@ -67,7 +67,7 @@ class StackSafetySpec extends AnyFunSuite {
 
     test("Monoid.combineAll nests right and keeps the order the tracers were given in") {
         import cats.Monoid
-        import hydrozoa.lib.logging.ContraTracer
+        import contratracer.ContraTracer
         val seen = scala.collection.mutable.ListBuffer.empty[Int]
         val legs = (1 to 5).toList.map(i => ContraTracer.emit[cats.Id, Int](_ => seen += i: Unit))
         Monoid[ContraTracer[cats.Id, Int]].combineAll(legs).traceWith(0)

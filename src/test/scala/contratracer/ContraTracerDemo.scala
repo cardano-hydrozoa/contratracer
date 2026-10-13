@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging
+package contratracer
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
 import cats.~>
-import hydrozoa.lib.logging.ContraTracer.nullTracer
+import contratracer.ContraTracer.nullTracer
 import java.util.concurrent.atomic.AtomicInteger
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer

@@ -1,15 +1,15 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.effect.IO
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer
+import contratracer.ContraTracer
 import java.lang.management.ManagementFactory
 
 /** Bytes allocated and nanoseconds spent per trace, call and run together, for a few shapes in IO,
   * run on this thread through `syncStep`. A coarse comparison between two builds of the library,
   * not a benchmark: no forks, no blackholes beyond a counter.
   *
-  * `java -cp <Test/fullClasspath> hydrozoa.lib.logging.edge.TraceCostProbe [traces]`.
+  * `java -cp <Test/fullClasspath> contratracer.edge.TraceCostProbe [traces]`.
   */
 object TraceCostProbe {
 

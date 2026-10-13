@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging
+package contratracer
 
 import cats.*
 import cats.arrow.*
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer.nullTracer
-import hydrozoa.lib.logging.TracerA.Squelching
+import contratracer.ContraTracer.nullTracer
+import contratracer.TracerA.Squelching
 import scala.annotation.unused
 
 /** A typed, composable contravariant tracer: a component emits typed events and stays unaware of

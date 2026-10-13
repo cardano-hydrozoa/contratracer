@@ -1,9 +1,9 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.data.Kleisli
 import cats.syntax.all.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Recorded.*
+import contratracer.*
+import contratracer.laws.Recorded.*
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.{Arbitrary, Cogen, Gen}
 

@@ -49,7 +49,7 @@ the SLF4J sink belong to the application.
 import cats.Eval
 import cats.effect.IO
 import cats.syntax.all.* // contramap and |+| come from cats syntax
-import hydrozoa.lib.logging.ContraTracer
+import contratracer.ContraTracer
 import org.slf4j.LoggerFactory
 
 enum Level:
@@ -120,7 +120,7 @@ Use a `Ref` or a concurrent queue, never a plain mutable buffer: a tracer may be
 fibers at once. Assert on each fiber's own order, or on membership; across fibers the order is not
 fixed.
 
-[`ContraTracerDemo.scala`](src/test/scala/hydrozoa/lib/logging/ContraTracerDemo.scala) is a worked
+[`ContraTracerDemo.scala`](src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
 tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `natTracer` and silencing.
 
 ## How a tracer behaves

@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.arrow.Arrow
 import cats.effect.IO
 import cats.syntax.all.*
 import cats.{Eval, Id, Monad, Monoid}
-import hydrozoa.lib.logging.{ContraTracer, TracerA}
+import contratracer.{ContraTracer, TracerA}
 
 /** Tracers composed `depth` levels deep, and a way to build, trace and run one on a thread with a
   * chosen stack size, reporting the phase that overflowed.

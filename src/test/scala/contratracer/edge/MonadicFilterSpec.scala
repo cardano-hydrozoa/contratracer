@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer
-import hydrozoa.lib.logging.ContraTracer.nullTracer
+import contratracer.ContraTracer
+import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite
 
 /** `squelchUnlessM` and `traceMaybeM` run their effect only when something downstream emits, once

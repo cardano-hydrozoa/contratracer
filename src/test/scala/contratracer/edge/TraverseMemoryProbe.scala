@@ -1,14 +1,14 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.Id
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import hydrozoa.lib.logging.ContraTracer
+import contratracer.ContraTracer
 
 /** Heap retained while `traceTraversable` walks a structure of `n` elements, sampled after a full
   * GC: before tracing, when `traceWith` returns, and at each quarter of the emissions.
   *
-  * `java -Xmx2g -cp <Test/fullClasspath> hydrozoa.lib.logging.edge.TraverseMemoryProbe [n]`.
+  * `java -Xmx2g -cp <Test/fullClasspath> contratracer.edge.TraverseMemoryProbe [n]`.
   */
 object TraverseMemoryProbe {
 

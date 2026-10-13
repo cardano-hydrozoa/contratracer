@@ -1,9 +1,9 @@
-package hydrozoa.lib.logging
+package contratracer
 
 import cats.Id
 import cats.arrow.FunctionK
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer.nullTracer
+import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable.ListBuffer
 

@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import java.lang.management.ManagementFactory
 
@@ -7,7 +7,7 @@ import java.lang.management.ManagementFactory
   * after the JIT has compiled the hot frames, which shrinks them.
   *
   * Run outside sbt so the JVM flags are known:
-  * `java -cp <Test/fullClasspath> hydrozoa.lib.logging.edge.StackDepthProbe [stackKiB] [cap]`.
+  * `java -cp <Test/fullClasspath> contratracer.edge.StackDepthProbe [stackKiB] [cap]`.
   */
 object StackDepthProbe {
     def main(args: Array[String]): Unit = {

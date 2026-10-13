@@ -1,8 +1,8 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.arrow.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Recorded.*
+import contratracer.*
+import contratracer.laws.Recorded.*
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.Checkers
 import org.typelevel.discipline.scalatest.FunSuiteDiscipline

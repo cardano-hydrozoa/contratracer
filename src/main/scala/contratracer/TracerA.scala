@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging
+package contratracer
 
 import cats.*
 import cats.arrow.*

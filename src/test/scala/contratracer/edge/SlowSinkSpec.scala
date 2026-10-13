@@ -1,9 +1,9 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Deferred, IO, Ref}
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer
+import contratracer.ContraTracer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import org.scalatest.funsuite.AnyFunSuite

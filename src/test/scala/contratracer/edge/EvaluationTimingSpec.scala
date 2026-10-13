@@ -1,9 +1,9 @@
-package hydrozoa.lib.logging.edge
+package contratracer.edge
 
 import cats.arrow.FunctionK
 import cats.syntax.all.*
-import hydrozoa.lib.logging.ContraTracer
-import hydrozoa.lib.logging.ContraTracer.nullTracer
+import contratracer.ContraTracer
+import contratracer.ContraTracer.nullTracer
 import org.scalatest.funsuite.AnyFunSuite
 
 /** When each part of a composed tracer is evaluated, relative to `traceWith` returning and to the

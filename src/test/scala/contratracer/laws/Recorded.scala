@@ -1,10 +1,10 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.*
 import cats.data.*
 import cats.laws.discipline.ExhaustiveCheck
 import cats.syntax.all.*
-import hydrozoa.lib.logging.*
+import contratracer.*
 
 /** One recorded effect of a test tracer. `Emit` is written only by an emitting effect (`emit`, or
   * the emitter half of a raw `Emitting`); `Eff` only by a non-emitting one (`effect`, or the

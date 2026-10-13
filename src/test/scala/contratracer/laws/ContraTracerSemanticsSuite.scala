@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.*
 import cats.arrow.FunctionK
@@ -6,9 +6,9 @@ import cats.laws.discipline.ExhaustiveCheck
 import cats.laws.discipline.MiniInt
 import cats.laws.discipline.arbitrary.*
 import cats.syntax.all.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Generators.given
-import hydrozoa.lib.logging.laws.Recorded.*
+import contratracer.*
+import contratracer.laws.Generators.given
+import contratracer.laws.Recorded.*
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Prop.forAll
 import org.scalacheck.util.Pretty

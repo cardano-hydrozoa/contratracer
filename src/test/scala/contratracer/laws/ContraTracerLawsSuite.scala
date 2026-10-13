@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.*
 import cats.kernel.laws.discipline.MonoidTests
@@ -6,8 +6,8 @@ import cats.laws.discipline.*
 import cats.laws.discipline.SemigroupalTests.Isomorphisms
 import cats.laws.discipline.arbitrary.*
 import cats.syntax.all.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Generators.given
+import contratracer.*
+import contratracer.laws.Generators.given
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.Checkers
 import org.typelevel.discipline.Laws

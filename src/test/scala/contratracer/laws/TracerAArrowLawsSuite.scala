@@ -1,4 +1,4 @@
-package hydrozoa.lib.logging.laws
+package contratracer.laws
 
 import cats.Eq
 import cats.data.Kleisli
@@ -6,9 +6,9 @@ import cats.syntax.all.*
 import cats.arrow.*
 import cats.laws.discipline.*
 import cats.laws.discipline.arbitrary.*
-import hydrozoa.lib.logging.*
-import hydrozoa.lib.logging.laws.Generators.given
-import hydrozoa.lib.logging.laws.Recorded.*
+import contratracer.*
+import contratracer.laws.Generators.given
+import contratracer.laws.Recorded.*
 import org.scalacheck.Test
 import org.scalacheck.rng.Seed
 import org.scalatest.funsuite.AnyFunSuite
