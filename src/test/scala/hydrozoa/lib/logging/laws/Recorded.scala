@@ -39,6 +39,12 @@ object Recorded:
             val (l, a) = w.run
             State(s => (s ++ l.toList, a))
 
+    /** A monad morphism `S ~> W` (from the empty state): tells the state the run produced. */
+    val fromState: S ~> W = new (S ~> W):
+        def apply[A](s: S[A]): W[A] =
+            val (l, a) = s.run(Vector.empty).value
+            Writer(Chain.fromSeq(l), a)
+
     def runS[A](s: S[A]): (List[Ev], A) =
         val (l, a) = s.run(Vector.empty).value
         (l.toList, a)
