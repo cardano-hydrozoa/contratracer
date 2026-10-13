@@ -124,7 +124,7 @@ A tracer may be called from several fibers at once, so a hand-written recorder n
 concurrent queue, never a plain mutable buffer. Assert on each fiber's own order, or on membership;
 across fibers the order is not fixed.
 
-[`ContraTracerDemo.scala`](src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
+[`ContraTracerDemo.scala`](contratracer/src/test/scala/contratracer/ContraTracerDemo.scala) is a worked
 tour of `contramap`, `|+|`, `traceMaybe`, `squelchUnless`, `mapK` and silencing.
 
 ### Skip disabled events with `KeyedTracer`
@@ -273,6 +273,15 @@ Combinators that need cats-effect. It adds `cats-effect-kernel`.
 
 ## Layout
 
+Each published module has its own directory; the build's root aggregates them and publishes
+nothing.
+
+- `contratracer/`: the core library, in package `contratracer`.
+- `contratracer-slf4j/`: the SLF4J module.
+- `contratracer-effect/`: the cats-effect module.
+
+The core's sources:
+
 - `ContraTracer.scala`: the user-facing tracer (`traceWith`, `contramap`, `|+|`, `traceMaybe`,
   `squelchUnless`, `contramapM`, `traceTraversable`, `mapK`, their `M` forms) and its
   `Contravariant` and `Monoid` instances.
@@ -281,8 +290,6 @@ Combinators that need cats-effect. It adds `cats-effect-kernel`.
 - `KeyedTracer.scala`: `KeyedTracer`, which asks with a key before building an event, and
   `TraceKey`, the key an event's type carries.
 - `Level.scala`: `Level`, its shorthands, and `Severity`, a `TraceKey` over `Level`.
-- `contratracer-slf4j/`: the SLF4J module.
-- `contratracer-effect/`: the cats-effect module.
 
 ## Building
 
