@@ -2,7 +2,7 @@ package contratracer.slf4j
 
 import cats.Monad
 import cats.effect.kernel.Sync
-import contratracer.{ContraTracer, KeyedTracer}
+import contratracer.{ContraTracer, KeyedTracer, Level}
 import org.slf4j.Logger
 
 /** SLF4J sinks bound to one logger when they are wired, so a trace does no logger lookup. They call
@@ -13,17 +13,17 @@ object Slf4jSink {
     /** A keyed sink that asks `logger` whether an event's level is enabled before the event is
       * built, on every trace, so a level changed at run time is followed.
       *
-      * The level comes with the event: stated at the call with `traceAt`, or found as a
-      * [[Severity]] by `traceWith`. `render` runs only for an event whose level was enabled at the
-      * call, inside the `F[Unit]` the trace returns, and its message is logged at the event's
-      * level. A level lowered between the call and the run still renders, and the logger drops the
-      * message.
+      * The level comes with the event: stated at the call with `traceAt` or a level shorthand, or
+      * found as a `Severity` by `traceWith`. `render` runs only for an event whose level was
+      * enabled at the call, inside the `F[Unit]` the trace returns, and its message is logged at
+      * the event's level. A level lowered between the call and the run still renders, and the
+      * logger drops the message.
       */
     def keyed[F[_], A](logger: Logger)(render: A => String)(using
         F: Sync[F]
     ): KeyedTracer[F, Level, A] =
         KeyedTracer(
-          Level.enabled(logger),
+          enabled(logger),
           ContraTracer.emit[F, (Level, A)]((level, a) => F.delay(log(logger, level, render(a))))
         )
 
@@ -36,7 +36,22 @@ object Slf4jSink {
     def squelchedIfDisabled[F[_]: Monad, A](logger: Logger, emits: Iterable[Level])(
         tracer: => ContraTracer[F, A]
     ): ContraTracer[F, A] =
-        if Level.anyEnabled(logger, emits) then tracer else ContraTracer.nullTracer[F, A]
+        if anyEnabled(logger, emits) then tracer else ContraTracer.nullTracer[F, A]
+
+    /** Whether `logger` has `level` enabled, asked of the logger on every call, so a level changed
+      * at run time is followed. It makes the same call SLF4J's default `isEnabledForLevel` makes.
+      */
+    def enabled(logger: Logger)(level: Level): Boolean = level match {
+        case Level.Trace => logger.isTraceEnabled
+        case Level.Debug => logger.isDebugEnabled
+        case Level.Info  => logger.isInfoEnabled
+        case Level.Warn  => logger.isWarnEnabled
+        case Level.Error => logger.isErrorEnabled
+    }
+
+    /** Whether `logger` has any of `levels` enabled. */
+    def anyEnabled(logger: Logger, levels: Iterable[Level]): Boolean =
+        levels.exists(enabled(logger))
 
     private def log(logger: Logger, level: Level, msg: String): Unit = level match {
         case Level.Trace => logger.trace(msg)

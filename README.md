@@ -43,17 +43,14 @@ enum FetcherEvent:
 ### Wire with `contramap`
 
 A sink is a tracer over the backend's own type. `contramap` adapts it to a component's events with a
-format function. The library has no levels and no backend; in this example, `Level`, `LogLine` and
-the SLF4J sink belong to the application.
+format function. The core library has no backend; in this example, `LogLine` and the SLF4J sink
+belong to the application, and `Level` is the library's five levels.
 
 ```scala
 import cats.Eval
 import cats.effect.IO
-import contratracer.ContraTracer
+import contratracer.{ContraTracer, Level}
 import org.slf4j.LoggerFactory
-
-enum Level:
-    case Debug, Info, Warn
 
 final case class LogLine(logger: String, level: Level, message: Eval[String])
 
@@ -61,9 +58,11 @@ val slf4j: ContraTracer[IO, LogLine] = ContraTracer { line =>
     IO.delay {
         val log = LoggerFactory.getLogger(line.logger)
         line.level match
+            case Level.Trace => if log.isTraceEnabled then log.trace(line.message.value)
             case Level.Debug => if log.isDebugEnabled then log.debug(line.message.value)
             case Level.Info  => if log.isInfoEnabled then log.info(line.message.value)
             case Level.Warn  => if log.isWarnEnabled then log.warn(line.message.value)
+            case Level.Error => if log.isErrorEnabled then log.error(line.message.value)
     }
 }
 
@@ -136,7 +135,7 @@ State the key at the call with `traceAt`, or put a `TraceKey` beside the event t
 `traceWith`, which finds it from the argument's static type:
 
 ```scala
-import contratracer.{KeyedTracer, TraceKey}
+import contratracer.{KeyedTracer, Level, TraceKey}
 
 sealed trait WeaverEvent
 object WeaverEvent:
@@ -164,6 +163,12 @@ def weaver(tracer: KeyedTracer[IO, Level, WeaverEvent]): IO[Unit] =
 - **`at(key)`** fixes the key: `tracer.at(Level.Info)(event)` is `traceAt(Level.Info)(event)`. Hoist
   it once, as `val info = tracer.at(Level.Info)`, and call `info(event)`. The hoisted function still
   takes its event by name and asks `enabled` on every call.
+- **`Level`** is five levels, `Trace` to `Error`, for a key that is a level, and **`Severity[E]`** is
+  `TraceKey[Level, E]`, written `Severity(Level.Info)` or `Severity.byValue(Level.Warn)(levelOf)`.
+- **Level shorthands.** On any `KeyedTracer` keyed by `Level`, `tracer.info(event)` is
+  `tracer.traceAt(Level.Info)(event)`, and likewise `error`, `warn` and `debug`; TRACE is `atTrace`,
+  since `trace` would read as tracing at no level in particular. They live in `Level`'s companion,
+  so they need no import, and each takes its event by name.
 - **Composition.** `contramap`, `|+|` and `mapK` work as on `ContraTracer`. With `|+|`, a key is
   enabled when either side enables it, and each side still receives only the keys it enables.
   `KeyedTracer.always(tracer)` enables every key, for a recording tracer in tests;
@@ -223,25 +228,22 @@ module's name as the artifact.
 
 Keyed sinks over SLF4J, with no logging backend. It adds `slf4j-api` and `cats-effect-kernel`.
 
-- **`Level`** is SLF4J's five levels, and **`Severity[E]`** is `TraceKey[Level, E]`, written
-  `Severity(Level.Info)` or `Severity.byValue(Level.Warn)(levelOf)`.
-- **Level shorthands.** On any `KeyedTracer` keyed by `Level`, `tracer.info(event)` is
-  `tracer.traceAt(Level.Info)(event)`, and likewise `error`, `warn` and `debug`; TRACE is `atTrace`,
-  since `trace` would read as tracing at no level in particular. They live in `Level`'s companion,
-  so they need no import, and each takes its event by name.
 - **`Slf4jSink.keyed(logger)(render)`** is a `KeyedTracer[F, Level, A]` bound to one logger when
   it is wired. It asks the logger whether the event's level is enabled before the event is built,
   on every trace, so a level changed at run time is followed. `render` runs only for an event whose
   level was enabled at the call, when the traced effect runs. It calls SLF4J directly and leaves
   the MDC alone.
+- **`Slf4jSink.enabled(logger)(level)`** asks the logger whether `level` is enabled, as `keyed`
+  does; `Slf4jSink.anyEnabled(logger, levels)` asks it of several.
 - **`Slf4jSink.squelchedIfDisabled(logger, levels)(tracer)`** returns `nullTracer` when the logger
   has none of `levels` enabled at wiring. It never follows a later level change.
 
-With `WeaverEvent`'s keys written over this module's `Level`, as
+With `WeaverEvent`'s keys written over the library's `Level`, as
 `given Severity[Produced] = Severity(Level.Info)`, the events wire straight to a logger:
 
 ```scala
-import contratracer.slf4j.{Level, Severity, Slf4jSink}
+import contratracer.{Level, Severity}
+import contratracer.slf4j.Slf4jSink
 import org.slf4j.LoggerFactory
 
 val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
@@ -260,6 +262,7 @@ val weaverTracer: KeyedTracer[IO, Level, WeaverEvent] =
   `ArrowChoice` instance, and the compile step that makes a squelched trace allocation-free.
 - `KeyedTracer.scala`: `KeyedTracer`, which asks with a key before building an event, and
   `TraceKey`, the key an event's type carries.
+- `Level.scala`: `Level`, its shorthands, and `Severity`, a `TraceKey` over `Level`.
 - `contratracer-slf4j/`: the SLF4J module.
 
 ## Building

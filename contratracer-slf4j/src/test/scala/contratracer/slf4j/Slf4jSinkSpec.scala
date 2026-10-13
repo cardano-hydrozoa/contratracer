@@ -6,7 +6,7 @@ import cats.syntax.all.*
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.{Level as LbLevel, Logger as LbLogger, LoggerContext}
 import ch.qos.logback.core.read.ListAppender
-import contratracer.{ContraTracer, KeyedTracer}
+import contratracer.{ContraTracer, KeyedTracer, Level, Severity}
 import java.util.concurrent.atomic.AtomicInteger
 import org.scalatest.funsuite.AnyFunSuite
 import org.slf4j.LoggerFactory
@@ -59,7 +59,7 @@ class Slf4jSinkSpec extends AnyFunSuite {
     test("an emitting sink that checks the level itself builds the event first") {
         val (lg, app) = logger("Keyed.unkeyed", LbLevel.OFF)
         val unkeyed = ContraTracer.emit[IO, (Level, Event)] { (l, e) =>
-            IO(if Level.enabled(lg)(l) then lg.info(render(e)))
+            IO(if Slf4jSink.enabled(lg)(l) then lg.info(render(e)))
         }
         val _ = assertThrows[AssertionError](unkeyed.traceWith((Level.Info, boom[Event])))
         assert(lines(app).isEmpty)
