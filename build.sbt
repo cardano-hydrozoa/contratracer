@@ -11,7 +11,7 @@ ThisBuild / version := "0.2.0"
 // The core library, published as `contratracer`. It aggregates the modules, so a command run at
 // the root, JitPack's `publishM2` included, runs in every module too.
 lazy val root: Project = (project in file("."))
-    .aggregate(LocalProject("slf4j"))
+    .aggregate(LocalProject("slf4j"), LocalProject("effect"))
     .settings(
       // Matches the GitHub repo name so the JitPack coordinate reads `…:contratracer:…`.
       name := "contratracer",
@@ -54,6 +54,23 @@ lazy val slf4j: Project = (project in file("contratracer-slf4j"))
         "org.typelevel" %% "cats-effect-kernel" % "3.6.3",
         "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
         "ch.qos.logback" % "logback-classic" % "1.5.18" % Test,
+        "org.scalatest" %% "scalatest" % "3.2.19" % Test
+      ),
+      scalacOptions ++= (root / scalacOptions).value
+    )
+
+// cats-effect combinators: a recording tracer for tests, and tracing around an act that a cancel
+// can interrupt. It adds the cats-effect kernel only; its tests run on cats-effect itself.
+lazy val effect: Project = (project in file("contratracer-effect"))
+    .dependsOn(root)
+    .settings(
+      name := "contratracer-effect",
+      description := "cats-effect combinators for contratracer: recording and trace-before-act.",
+      licenses := (root / licenses).value,
+      libraryDependencies ++= Seq(
+        "org.typelevel" %% "cats-effect-kernel" % "3.6.3",
+        "org.typelevel" %% "cats-effect" % "3.6.3" % Test,
+        "org.typelevel" %% "cats-effect-testkit" % "3.6.3" % Test,
         "org.scalatest" %% "scalatest" % "3.2.19" % Test
       ),
       scalacOptions ++= (root / scalacOptions).value
