@@ -1,10 +1,10 @@
 package contratracer.slf4j
 
-import contratracer.TraceKey
+import contratracer.{KeyedTracer, TraceKey}
 import org.slf4j.Logger
 
 /** SLF4J's five levels, least severe first, as the key of a `KeyedTracer`. */
-enum Level:
+enum Level derives CanEqual:
     case Trace, Debug, Info, Warn, Error
 
 object Level {
@@ -23,6 +23,20 @@ object Level {
     /** Whether `logger` has any of `levels` enabled. */
     def anyEnabled(logger: Logger, levels: Iterable[Level]): Boolean =
         levels.exists(enabled(logger))
+
+    /** A level's name for `traceAt`: `tracer.info(event)` is `tracer.traceAt(Level.Info)(event)`.
+      * Each takes its event by name, so a disabled level builds nothing. They are found without an
+      * import on any `KeyedTracer` keyed by `Level`.
+      *
+      * TRACE is `atTrace`, since `trace` would read as tracing at no level in particular.
+      */
+    extension [F[_], A](tracer: KeyedTracer[F, Level, A]) {
+        def error(event: => A): F[Unit] = tracer.traceAt(Error)(event)
+        def warn(event: => A): F[Unit] = tracer.traceAt(Warn)(event)
+        def info(event: => A): F[Unit] = tracer.traceAt(Info)(event)
+        def debug(event: => A): F[Unit] = tracer.traceAt(Debug)(event)
+        def atTrace(event: => A): F[Unit] = tracer.traceAt(Trace)(event)
+    }
 }
 
 /** The level every event of type `E` is logged at. Put the instance in `E`'s companion:

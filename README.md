@@ -225,6 +225,10 @@ Keyed sinks over SLF4J, with no logging backend. It adds `slf4j-api` and `cats-e
 
 - **`Level`** is SLF4J's five levels, and **`Severity[E]`** is `TraceKey[Level, E]`, written
   `Severity(Level.Info)` or `Severity.byValue(Level.Warn)(levelOf)`.
+- **Level shorthands.** On any `KeyedTracer` keyed by `Level`, `tracer.info(event)` is
+  `tracer.traceAt(Level.Info)(event)`, and likewise `error`, `warn` and `debug`; TRACE is `atTrace`,
+  since `trace` would read as tracing at no level in particular. They live in `Level`'s companion,
+  so they need no import, and each takes its event by name.
 - **`Slf4jSink.keyed(logger)(render)`** is a `KeyedTracer[F, Level, A]` bound to one logger when
   it is wired. It asks the logger whether the event's level is enabled before the event is built,
   on every trace, so a level changed at run time is followed. `render` runs only for an event whose
